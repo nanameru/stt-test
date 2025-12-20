@@ -2,12 +2,20 @@
 
 import { TranscriptionResult, STTProvider } from '@/lib/types';
 
+interface ProviderError {
+  provider: STTProvider;
+  errorCode: string;
+  message: string;
+}
+
 interface TranscriptionPanelProps {
   provider: STTProvider;
   results: TranscriptionResult[];
   isActive: boolean;
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
+  configured?: boolean;
+  error?: ProviderError | null;
 }
 
 const providerNames: Record<STTProvider, string> = {
@@ -30,16 +38,40 @@ export function TranscriptionPanel({
   isActive,
   enabled,
   onToggle,
+  configured = true,
+  error,
 }: TranscriptionPanelProps) {
   const latestResult = results[results.length - 1];
   const averageLatency = results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.latency, 0) / results.length)
     : 0;
 
+  const getStatusDisplay = () => {
+    if (!configured) {
+      return { text: 'Not Configured', color: 'text-yellow-500' };
+    }
+    if (error) {
+      return { text: 'Error', color: 'text-red-500' };
+    }
+    if (isActive) {
+      return { text: 'Active', color: 'text-green-500' };
+    }
+    return { text: 'Idle', color: 'text-zinc-400' };
+  };
+
+  const status = getStatusDisplay();
+
   return (
     <div className={`rounded-lg border-2 ${providerColors[provider]} bg-white dark:bg-zinc-900 p-4 flex flex-col h-full`}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-lg">{providerNames[provider]}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-lg">{providerNames[provider]}</h3>
+          {!configured && (
+            <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded">
+              API Key Missing
+            </span>
+          )}
+        </div>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -56,8 +88,8 @@ export function TranscriptionPanel({
       <div className="flex gap-4 text-sm text-zinc-600 dark:text-zinc-400 mb-3">
         <div>
           <span className="font-medium">Status:</span>{' '}
-          <span className={isActive ? 'text-green-500' : 'text-zinc-400'}>
-            {isActive ? 'Active' : 'Idle'}
+          <span className={status.color}>
+            {status.text}
           </span>
         </div>
         <div>
@@ -66,10 +98,25 @@ export function TranscriptionPanel({
         </div>
       </div>
 
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm">
+          <p className="text-red-700 dark:text-red-300 font-medium">
+            {error.errorCode}
+          </p>
+          <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+            {error.message}
+          </p>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-800 rounded p-3 min-h-[200px] max-h-[300px]">
         {results.length === 0 ? (
           <p className="text-zinc-400 text-sm italic">
-            {enabled ? 'Waiting for audio...' : 'Provider disabled'}
+            {!configured 
+              ? 'API key not configured. Check .env.local file.'
+              : enabled 
+                ? 'Waiting for audio...' 
+                : 'Provider disabled'}
           </p>
         ) : (
           <div className="space-y-2">

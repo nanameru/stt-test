@@ -1,11 +1,29 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAudioRecorder } from '@/lib/useAudioRecorder';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import { RecordingControls } from '@/components/RecordingControls';
 import { EvaluationTable } from '@/components/EvaluationTable';
 import { TranscriptionResult, STTProvider, STTConfig, EvaluationResult } from '@/lib/types';
+
+interface ProviderStatus {
+  provider: string;
+  configured: boolean;
+  envVar: string;
+}
+
+interface HealthResponse {
+  status: string;
+  message: string;
+  providers: ProviderStatus[];
+}
+
+interface ProviderError {
+  provider: STTProvider;
+  errorCode: string;
+  message: string;
+}
 
 const defaultConfigs: STTConfig[] = [
   { provider: 'openai-whisper', enabled: true },
@@ -31,8 +49,31 @@ export default function Home() {
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [activeProviders, setActiveProviders] = useState<Set<STTProvider>>(new Set());
+  const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
+  const [providerErrors, setProviderErrors] = useState<Record<STTProvider, ProviderError | null>>({
+    'openai-whisper': null,
+    'gemini-pro': null,
+    'gemini-live': null,
+    'groq-whisper': null,
+  });
+  const [healthLoading, setHealthLoading] = useState(true);
 
-  const processAudioChunk = useCallback(async (blob: Blob, timestamp: number) => {
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        const response = await fetch('/api/health');
+        const data: HealthResponse = await response.json();
+        setProviderStatuses(data.providers);
+      } catch (error) {
+        console.error('Failed to check health:', error);
+      } finally {
+        setHealthLoading(false);
+      }
+    }
+    checkHealth();
+  }, []);
+
+  const processAudioChunk = useCallback(async (blob: Blob) => {
     const enabledProviders = configs.filter((c) => c.enabled).map((c) => c.provider);
     
     const promises = enabledProviders.map(async (provider) => {
@@ -47,11 +88,26 @@ export default function Home() {
           body: formData,
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          setProviderErrors((prev) => ({
+            ...prev,
+            [provider]: {
+              provider,
+              errorCode: data.errorCode || 'UNKNOWN_ERROR',
+              message: data.message || `HTTP error! status: ${response.status}`,
+            },
+          }));
+          return;
         }
 
-        const result: TranscriptionResult = await response.json();
+        setProviderErrors((prev) => ({
+          ...prev,
+          [provider]: null,
+        }));
+
+        const result: TranscriptionResult = data;
         
         if (result.text && result.text.trim()) {
           setResults((prev) => ({
@@ -61,6 +117,14 @@ export default function Home() {
         }
       } catch (error) {
         console.error(`Error with ${provider}:`, error);
+        setProviderErrors((prev) => ({
+          ...prev,
+          [provider]: {
+            provider,
+            errorCode: 'NETWORK_ERROR',
+            message: error instanceof Error ? error.message : 'Network error occurred',
+          },
+        }));
       } finally {
         setActiveProviders((prev) => {
           const next = new Set(prev);
@@ -142,16 +206,21 @@ export default function Home() {
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {configs.map((config) => (
-              <TranscriptionPanel
-                key={config.provider}
-                provider={config.provider}
-                results={results[config.provider]}
-                isActive={activeProviders.has(config.provider)}
-                enabled={config.enabled}
-                onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
-              />
-            ))}
+            {configs.map((config) => {
+              const status = providerStatuses.find((s) => s.provider === config.provider);
+              return (
+                <TranscriptionPanel
+                  key={config.provider}
+                  provider={config.provider}
+                  results={results[config.provider]}
+                  isActive={activeProviders.has(config.provider)}
+                  enabled={config.enabled}
+                  onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
+                  configured={healthLoading ? true : status?.configured ?? true}
+                  error={providerErrors[config.provider]}
+                />
+              );
+            })}
           </div>
 
           <div className="flex justify-center">
