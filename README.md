@@ -1,36 +1,162 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Real-time STT Evaluation App
 
-## Getting Started
+A desktop application for evaluating and comparing multiple Speech-to-Text (STT) APIs in real-time. Built with Next.js and Electron.
 
-First, run the development server:
+## Features
+
+- Real-time audio capture from microphone
+- Parallel transcription using 4 STT providers:
+  - **OpenAI Whisper** (whisper-1)
+  - **Groq Whisper** (whisper-large-v3)
+  - **Gemini Pro** (gemini-2.0-flash with audio input)
+  - **Gemini Live** (gemini-2.0-flash with speaker diarization prompt)
+- Latency measurement for each provider
+- Evaluation report generation
+- Speaker diarization support (Gemini providers)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure API Keys
+
+Copy the example environment file and add your API keys:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` and add your API keys:
+
+```env
+# OpenAI API Key (for Whisper)
+# Get your key at: https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-...
+
+# Groq API Key (for Whisper Large V3)
+# Get your key at: https://console.groq.com/keys
+GROQ_API_KEY=gsk_...
+
+# Google API Key (for Gemini)
+# Get your key at: https://aistudio.google.com/apikey
+GOOGLE_API_KEY=AIza...
+```
+
+### 3. Run the Application
+
+**As Electron Desktop App (Recommended):**
+
+```bash
+npm run electron:dev
+```
+
+**As Web App:**
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Grant Microphone Permission
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+When prompted, allow the application to access your microphone.
 
-## Learn More
+## Usage
 
-To learn more about Next.js, take a look at the following resources:
+1. Click **"Start Recording"** to begin capturing audio
+2. Speak into your microphone
+3. Watch real-time transcriptions appear in each provider panel
+4. Click **"Stop Recording"** when finished
+5. Click **"Generate Evaluation Report"** to see comparison metrics
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API Configuration Status
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The app will show which providers are configured. Visit `/api/health` to check the status of all providers programmatically.
 
-## Deploy on Vercel
+## Audio Configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The app uses the following audio settings for consistent evaluation:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Setting | Value |
+|---------|-------|
+| Format | WebM/Opus |
+| Sample Rate | 16kHz |
+| Channels | Mono |
+| Chunk Interval | 2 seconds |
+| Echo Cancellation | Enabled |
+| Noise Suppression | Enabled |
+
+## Supported Audio Formats
+
+All providers support the following input formats:
+- WebM (used by this app)
+- MP3
+- WAV
+- M4A
+- FLAC
+
+Maximum file size: 25MB per chunk (well within limits with 2-second chunks)
+
+## Building for Production
+
+### Build Electron App
+
+```bash
+npm run electron:build
+```
+
+This will create distributable packages in the `dist-electron` directory:
+- **Windows**: `.exe` installer (NSIS)
+- **macOS**: `.dmg` disk image
+- **Linux**: `.AppImage`
+
+## Troubleshooting
+
+### "API key not configured" Error
+
+Make sure you have:
+1. Created `.env.local` file in the project root
+2. Added the correct API key for the provider
+3. Restarted the development server after adding keys
+
+### Microphone Not Working
+
+1. Check browser/app permissions for microphone access
+2. Ensure no other application is using the microphone
+3. Try refreshing the page or restarting the app
+
+### Rate Limit Errors
+
+If you see rate limit errors, wait a few minutes before trying again. Consider:
+- Reducing the number of enabled providers
+- Increasing the chunk interval
+
+## Project Structure
+
+```
+stt-test/
+├── electron/           # Electron main process
+│   └── main.js
+├── src/
+│   ├── app/
+│   │   ├── api/stt/    # STT API routes
+│   │   │   ├── openai-whisper/
+│   │   │   ├── groq-whisper/
+│   │   │   ├── gemini-pro/
+│   │   │   └── gemini-live/
+│   │   └── page.tsx    # Main UI
+│   ├── components/     # React components
+│   └── lib/            # Utilities and hooks
+├── docs/
+│   └── TASK_SPEC.md    # Original requirements (Japanese)
+└── .env.example        # Environment template
+```
+
+## License
+
+MIT
