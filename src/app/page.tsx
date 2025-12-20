@@ -1,65 +1,181 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useCallback } from 'react';
+import { useAudioRecorder } from '@/lib/useAudioRecorder';
+import { TranscriptionPanel } from '@/components/TranscriptionPanel';
+import { RecordingControls } from '@/components/RecordingControls';
+import { EvaluationTable } from '@/components/EvaluationTable';
+import { TranscriptionResult, STTProvider, STTConfig, EvaluationResult } from '@/lib/types';
+
+const defaultConfigs: STTConfig[] = [
+  { provider: 'openai-whisper', enabled: true },
+  { provider: 'gemini-pro', enabled: true },
+  { provider: 'gemini-live', enabled: true },
+  { provider: 'groq-whisper', enabled: true },
+];
+
+const apiEndpoints: Record<STTProvider, string> = {
+  'openai-whisper': '/api/stt/openai-whisper',
+  'gemini-pro': '/api/stt/gemini-pro',
+  'gemini-live': '/api/stt/gemini-live',
+  'groq-whisper': '/api/stt/groq-whisper',
+};
 
 export default function Home() {
+  const [configs, setConfigs] = useState<STTConfig[]>(defaultConfigs);
+  const [results, setResults] = useState<Record<STTProvider, TranscriptionResult[]>>({
+    'openai-whisper': [],
+    'gemini-pro': [],
+    'gemini-live': [],
+    'groq-whisper': [],
+  });
+  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
+  const [activeProviders, setActiveProviders] = useState<Set<STTProvider>>(new Set());
+
+  const processAudioChunk = useCallback(async (blob: Blob, timestamp: number) => {
+    const enabledProviders = configs.filter((c) => c.enabled).map((c) => c.provider);
+    
+    const promises = enabledProviders.map(async (provider) => {
+      setActiveProviders((prev) => new Set([...prev, provider]));
+      
+      try {
+        const formData = new FormData();
+        formData.append('audio', blob, 'audio.webm');
+
+        const response = await fetch(apiEndpoints[provider], {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result: TranscriptionResult = await response.json();
+        
+        if (result.text && result.text.trim()) {
+          setResults((prev) => ({
+            ...prev,
+            [provider]: [...prev[provider], result],
+          }));
+        }
+      } catch (error) {
+        console.error(`Error with ${provider}:`, error);
+      } finally {
+        setActiveProviders((prev) => {
+          const next = new Set(prev);
+          next.delete(provider);
+          return next;
+        });
+      }
+    });
+
+    await Promise.all(promises);
+  }, [configs]);
+
+  const { isRecording, error, startRecording, stopRecording } = useAudioRecorder({
+    onAudioChunk: processAudioChunk,
+    chunkInterval: 2000,
+  });
+
+  const handleToggleProvider = useCallback((provider: STTProvider, enabled: boolean) => {
+    setConfigs((prev) =>
+      prev.map((c) => (c.provider === provider ? { ...c, enabled } : c))
+    );
+  }, []);
+
+  const handleClearResults = useCallback(() => {
+    setResults({
+      'openai-whisper': [],
+      'gemini-pro': [],
+      'gemini-live': [],
+      'groq-whisper': [],
+    });
+    setEvaluationResults([]);
+  }, []);
+
+  const generateEvaluation = useCallback(() => {
+    const newEvaluations: EvaluationResult[] = configs
+      .filter((c) => c.enabled && results[c.provider].length > 0)
+      .map((c) => {
+        const providerResults = results[c.provider];
+        const avgLatency = Math.round(
+          providerResults.reduce((sum, r) => sum + r.latency, 0) / providerResults.length
+        );
+        
+        return {
+          provider: c.provider,
+          accuracy: providerResults.length > 0 ? 'Good' : '-',
+          latency: `${avgLatency}ms`,
+          diarization: c.provider === 'gemini-pro' || c.provider === 'gemini-live' 
+            ? 'partial' as const 
+            : 'not-supported' as const,
+          speakerAssignment: c.provider === 'gemini-pro' || c.provider === 'gemini-live'
+            ? 'partial' as const
+            : 'not-supported' as const,
+          cost: getCostEstimate(c.provider),
+        };
+      });
+    
+    setEvaluationResults(newEvaluations);
+  }, [configs, results]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen bg-zinc-50 dark:bg-black p-6">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+            Real-time STT Evaluation
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-zinc-600 dark:text-zinc-400 mt-2">
+            Compare multiple Speech-to-Text APIs in real-time
           </p>
+        </header>
+
+        <div className="space-y-6">
+          <RecordingControls
+            isRecording={isRecording}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onClearResults={handleClearResults}
+            error={error}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {configs.map((config) => (
+              <TranscriptionPanel
+                key={config.provider}
+                provider={config.provider}
+                results={results[config.provider]}
+                isActive={activeProviders.has(config.provider)}
+                enabled={config.enabled}
+                onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
+              />
+            ))}
+          </div>
+
+          <div className="flex justify-center">
+            <button
+              onClick={generateEvaluation}
+              className="px-6 py-3 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
+            >
+              Generate Evaluation Report
+            </button>
+          </div>
+
+          <EvaluationTable results={evaluationResults} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
+}
+
+function getCostEstimate(provider: STTProvider): string {
+  const costs: Record<STTProvider, string> = {
+    'openai-whisper': '$0.006/min',
+    'gemini-pro': '$0.00025/1K chars',
+    'gemini-live': '$0.00025/1K chars',
+    'groq-whisper': '$0.001/min',
+  };
+  return costs[provider];
 }
