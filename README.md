@@ -6,15 +6,16 @@ A desktop application for evaluating and comparing multiple Speech-to-Text (STT)
 
 - Real-time audio capture from microphone
 - Parallel transcription using 5 STT providers:
-  - **OpenAI Realtime API** (whisper-1 with real-time capabilities)
+  - **OpenAI Realtime API** (gpt-4o-realtime via WebSocket with ephemeral tokens)
   - **Gemini Live API** (gemini-2.0-flash with speaker diarization)
   - **GPT-4o Transcribe Diarize** (Advanced speaker diarization)
-  - **Faster Whisper Large V3** (Local/Self-hosted, Japanese-optimized)
+  - **Faster Whisper Large V3** (Local/Self-hosted)
   - **Whisper Large V3 Turbo** (Fast OpenAI model)
 - Latency measurement for each provider
 - Evaluation report generation
 - Speaker diarization support (GPT-4o Transcribe, Gemini Live)
 - Local processing option (Faster Whisper)
+- WebSocket streaming for true real-time transcription (OpenAI Realtime API)
 
 ## Quick Start
 
@@ -35,7 +36,7 @@ cp .env.example .env.local
 Edit `.env.local` and add your API keys:
 
 ```env
-# OpenAI API Key (for Realtime API, GPT-4o Transcribe, Whisper Large V3 Turbo)
+# OpenAI API Key (for Whisper API, GPT-4o Transcribe, Whisper Large V3 Turbo)
 # Get your key at: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-...
 

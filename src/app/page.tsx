@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useAudioRecorder } from '@/lib/useAudioRecorder';
+import { useRealtimeAPI } from '@/lib/useRealtimeAPI';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import { RecordingControls } from '@/components/RecordingControls';
 import { EvaluationTable } from '@/components/EvaluationTable';
@@ -62,6 +63,26 @@ export default function Home() {
   });
   const [healthLoading, setHealthLoading] = useState(true);
 
+  // Initialize Realtime API WebSocket hook
+  const realtimeAPI = useRealtimeAPI({
+    onTranscription: useCallback((result: TranscriptionResult) => {
+      setResults((prev) => ({
+        ...prev,
+        'openai-realtime': [...prev['openai-realtime'], result],
+      }));
+    }, []),
+    onError: useCallback((error) => {
+      setProviderErrors((prev) => ({
+        ...prev,
+        'openai-realtime': {
+          provider: 'openai-realtime',
+          errorCode: error.errorCode,
+          message: error.message,
+        },
+      }));
+    }, []),
+  });
+
   useEffect(() => {
     async function checkHealth() {
       try {
@@ -78,11 +99,14 @@ export default function Home() {
   }, []);
 
   const processAudioChunk = useCallback(async (blob: Blob) => {
-    const enabledProviders = configs.filter((c) => c.enabled).map((c) => c.provider);
-    
+    // Filter out openai-realtime as it uses WebSocket, not HTTP chunks
+    const enabledProviders = configs
+      .filter((c) => c.enabled && c.provider !== 'openai-realtime')
+      .map((c) => c.provider);
+
     const promises = enabledProviders.map(async (provider) => {
       setActiveProviders((prev) => new Set([...prev, provider]));
-      
+
       try {
         const formData = new FormData();
         formData.append('audio', blob, 'audio.webm');
@@ -112,7 +136,7 @@ export default function Home() {
         }));
 
         const result: TranscriptionResult = data;
-        
+
         if (result.text && result.text.trim()) {
           setResults((prev) => ({
             ...prev,
@@ -141,10 +165,36 @@ export default function Home() {
     await Promise.all(promises);
   }, [configs]);
 
-  const { isRecording, error, startRecording, stopRecording } = useAudioRecorder({
+  const { isRecording, error, startRecording: startAudioRecorder, stopRecording: stopAudioRecorder } = useAudioRecorder({
     onAudioChunk: processAudioChunk,
     chunkInterval: 2000,
   });
+
+  // Custom handlers to manage both audio recorder and Realtime API
+  const handleStartRecording = useCallback(async () => {
+    // Start Realtime API if enabled
+    const realtimeConfig = configs.find(c => c.provider === 'openai-realtime');
+    if (realtimeConfig?.enabled) {
+      await realtimeAPI.connect();
+      setActiveProviders((prev) => new Set([...prev, 'openai-realtime']));
+    }
+
+    // Start audio recorder for other providers
+    startAudioRecorder();
+  }, [configs, realtimeAPI, startAudioRecorder]);
+
+  const handleStopRecording = useCallback(() => {
+    // Stop Realtime API
+    realtimeAPI.disconnect();
+    setActiveProviders((prev) => {
+      const next = new Set(prev);
+      next.delete('openai-realtime');
+      return next;
+    });
+
+    // Stop audio recorder
+    stopAudioRecorder();
+  }, [realtimeAPI, stopAudioRecorder]);
 
   const handleToggleProvider = useCallback((provider: STTProvider, enabled: boolean) => {
     setConfigs((prev) =>
@@ -206,8 +256,8 @@ export default function Home() {
         <div className="space-y-6">
           <RecordingControls
             isRecording={isRecording}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
             onClearResults={handleClearResults}
             error={error}
           />
@@ -215,12 +265,16 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {configs.map((config) => {
               const status = providerStatuses.find((s) => s.provider === config.provider);
+              const isActiveForProvider = config.provider === 'openai-realtime'
+                ? realtimeAPI.isConnected
+                : activeProviders.has(config.provider);
+
               return (
                 <TranscriptionPanel
                   key={config.provider}
                   provider={config.provider}
                   results={results[config.provider]}
-                  isActive={activeProviders.has(config.provider)}
+                  isActive={isActiveForProvider}
                   enabled={config.enabled}
                   onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
                   configured={healthLoading ? true : status?.configured ?? true}

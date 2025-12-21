@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 
+// OpenAI Realtime API endpoint for creating ephemeral client tokens
+// This endpoint creates an ephemeral token for browser-based WebSocket connection
+// Docs: https://platform.openai.com/docs/guides/realtime
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-
   // Check for API key first
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
@@ -18,88 +18,62 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const formData = await request.formData();
-    const audioFile = formData.get('audio') as File;
+    const body = await request.json();
+    const action = body.action;
 
-    if (!audioFile) {
-      return NextResponse.json(
-        {
-          error: 'No audio file provided',
-          errorCode: 'NO_AUDIO',
-          provider: 'openai-realtime',
+    if (action === 'get-token') {
+      // Create ephemeral client API key for browser-safe usage
+      // This key is short-lived and can be safely used in the browser
+      const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        { status: 400 }
-      );
-    }
+        body: JSON.stringify({
+          model: 'gpt-4o-realtime-preview-2024-12-17',
+          voice: 'alloy',
+        }),
+      });
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-
-    // Using the Realtime API transcription endpoint
-    // Note: For true real-time WebSocket streaming, this would need WebSocket implementation
-    // This uses the REST API endpoint for comparison
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: 'whisper-1', // Realtime API model
-      language: 'ja',
-      response_format: 'verbose_json',
-      timestamp_granularities: ['segment'],
-    });
-
-    const latency = Date.now() - startTime;
-
-    return NextResponse.json({
-      provider: 'openai-realtime',
-      text: transcription.text,
-      timestamp: startTime,
-      latency,
-      isFinal: true,
-    });
-  } catch (error) {
-    console.error('OpenAI Realtime error:', error);
-
-    // Handle specific error types
-    if (error instanceof OpenAI.APIError) {
-      if (error.status === 401) {
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to create Realtime API ephemeral token:', errorData);
         return NextResponse.json(
           {
-            error: 'Authentication failed',
-            errorCode: 'AUTH_FAILED',
-            message: 'Invalid OPENAI_API_KEY. Please check your API key.',
+            error: 'Failed to create ephemeral token',
+            errorCode: 'TOKEN_CREATE_FAILED',
+            message: errorData.error?.message || 'Failed to create ephemeral API token',
             provider: 'openai-realtime',
           },
-          { status: 401 }
+          { status: response.status }
         );
       }
-      if (error.status === 429) {
-        return NextResponse.json(
-          {
-            error: 'Rate limit exceeded',
-            errorCode: 'RATE_LIMIT',
-            message: 'OpenAI API rate limit exceeded. Please try again later.',
-            provider: 'openai-realtime',
-          },
-          { status: 429 }
-        );
-      }
-      if (error.status === 400) {
-        return NextResponse.json(
-          {
-            error: 'Invalid request',
-            errorCode: 'INVALID_REQUEST',
-            message: error.message || 'Invalid audio format or request.',
-            provider: 'openai-realtime',
-          },
-          { status: 400 }
-        );
-      }
+
+      const data = await response.json();
+
+      return NextResponse.json({
+        token: data.client_secret.value,
+        expiresAt: data.client_secret.expires_at,
+      });
     }
 
     return NextResponse.json(
       {
-        error: 'Failed to transcribe audio',
-        errorCode: 'TRANSCRIPTION_FAILED',
+        error: 'Invalid action',
+        errorCode: 'INVALID_ACTION',
+        message: 'Action must be "get-token"',
+        provider: 'openai-realtime',
+      },
+      { status: 400 }
+    );
+  } catch (error) {
+    console.error('OpenAI Realtime error:', error);
+
+    return NextResponse.json(
+      {
+        error: 'Failed to process request',
+        errorCode: 'REQUEST_FAILED',
         message: error instanceof Error ? error.message : 'Unknown error occurred',
         provider: 'openai-realtime',
       },
