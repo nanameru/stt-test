@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     if (action === 'get-token') {
       // Create ephemeral client API key for browser-safe usage
       // This key is short-lived and can be safely used in the browser
-      const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      // Docs: https://platform.openai.com/docs/api-reference/realtime-sessions/create
+      const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model: 'gpt-4o-realtime-preview-2024-12-17',
           voice: 'alloy',
+          modalities: ['text', 'audio'],
         }),
       });
 

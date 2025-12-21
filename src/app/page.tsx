@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAudioRecorder } from '@/lib/useAudioRecorder';
 import { useRealtimeAPI } from '@/lib/useRealtimeAPI';
+import { useGeminiLive } from '@/lib/useGeminiLive';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import { RecordingControls } from '@/components/RecordingControls';
 import { EvaluationTable } from '@/components/EvaluationTable';
@@ -62,6 +63,7 @@ export default function Home() {
     'whisper-large-v3-turbo': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
 
   // Initialize Realtime API WebSocket hook
   const realtimeAPI = useRealtimeAPI({
@@ -83,6 +85,45 @@ export default function Home() {
     }, []),
   });
 
+  // Initialize Gemini Live WebSocket hook
+  const geminiLive = useGeminiLive({
+    apiKey: geminiApiKey || '',
+    onTranscription: useCallback((text: string, timestamp: number, latency: number) => {
+      const result: TranscriptionResult = {
+        provider: 'gemini-live',
+        text,
+        timestamp,
+        latency,
+        isFinal: true,
+      };
+      setResults((prev) => ({
+        ...prev,
+        'gemini-live': [...prev['gemini-live'], result],
+      }));
+    }, []),
+    onError: useCallback((error: string) => {
+      setProviderErrors((prev) => ({
+        ...prev,
+        'gemini-live': {
+          provider: 'gemini-live',
+          errorCode: 'WEBSOCKET_ERROR',
+          message: error,
+        },
+      }));
+    }, []),
+    onStatusChange: useCallback((status: 'connecting' | 'connected' | 'disconnected' | 'error') => {
+      if (status === 'connected') {
+        setActiveProviders((prev) => new Set([...prev, 'gemini-live']));
+      } else if (status === 'disconnected' || status === 'error') {
+        setActiveProviders((prev) => {
+          const next = new Set(prev);
+          next.delete('gemini-live');
+          return next;
+        });
+      }
+    }, []),
+  });
+
   useEffect(() => {
     async function checkHealth() {
       try {
@@ -98,10 +139,26 @@ export default function Home() {
     checkHealth();
   }, []);
 
+  // Fetch Gemini API key on mount
+  useEffect(() => {
+    async function fetchGeminiApiKey() {
+      try {
+        const response = await fetch('/api/stt/gemini-live');
+        const data = await response.json();
+        if (data.apiKey) {
+          setGeminiApiKey(data.apiKey);
+        }
+      } catch (error) {
+        console.error('Failed to fetch Gemini API key:', error);
+      }
+    }
+    fetchGeminiApiKey();
+  }, []);
+
   const processAudioChunk = useCallback(async (blob: Blob) => {
-    // Filter out openai-realtime as it uses WebSocket, not HTTP chunks
+    // Filter out openai-realtime and gemini-live as they use WebSocket, not HTTP chunks
     const enabledProviders = configs
-      .filter((c) => c.enabled && c.provider !== 'openai-realtime')
+      .filter((c) => c.enabled && c.provider !== 'openai-realtime' && c.provider !== 'gemini-live')
       .map((c) => c.provider);
 
     const promises = enabledProviders.map(async (provider) => {
@@ -170,18 +227,24 @@ export default function Home() {
     chunkInterval: 2000,
   });
 
-  // Custom handlers to manage both audio recorder and Realtime API
+  // Custom handlers to manage both audio recorder and WebSocket APIs
   const handleStartRecording = useCallback(async () => {
-    // Start Realtime API if enabled
+    // Start OpenAI Realtime API if enabled
     const realtimeConfig = configs.find(c => c.provider === 'openai-realtime');
     if (realtimeConfig?.enabled) {
       await realtimeAPI.connect();
       setActiveProviders((prev) => new Set([...prev, 'openai-realtime']));
     }
 
+    // Start Gemini Live API if enabled
+    const geminiConfig = configs.find(c => c.provider === 'gemini-live');
+    if (geminiConfig?.enabled && geminiApiKey) {
+      await geminiLive.startStreaming();
+    }
+
     // Start audio recorder for other providers
     startAudioRecorder();
-  }, [configs, realtimeAPI, startAudioRecorder]);
+  }, [configs, realtimeAPI, geminiLive, geminiApiKey, startAudioRecorder]);
 
   const handleStopRecording = useCallback(() => {
     // Stop Realtime API
@@ -192,9 +255,17 @@ export default function Home() {
       return next;
     });
 
+    // Stop Gemini Live API
+    geminiLive.stopStreaming();
+    setActiveProviders((prev) => {
+      const next = new Set(prev);
+      next.delete('gemini-live');
+      return next;
+    });
+
     // Stop audio recorder
     stopAudioRecorder();
-  }, [realtimeAPI, stopAudioRecorder]);
+  }, [realtimeAPI, geminiLive, stopAudioRecorder]);
 
   const handleToggleProvider = useCallback((provider: STTProvider, enabled: boolean) => {
     setConfigs((prev) =>
@@ -221,7 +292,7 @@ export default function Home() {
         const avgLatency = Math.round(
           providerResults.reduce((sum, r) => sum + r.latency, 0) / providerResults.length
         );
-        
+
         return {
           provider: c.provider,
           accuracy: providerResults.length > 0 ? 'Good' : '-',
@@ -229,15 +300,15 @@ export default function Home() {
           diarization: c.provider === 'gpt-4o-transcribe-diarize' || c.provider === 'gemini-live'
             ? 'supported' as const
             : c.provider === 'faster-whisper-large-v3'
-            ? 'partial' as const
-            : 'not-supported' as const,
+              ? 'partial' as const
+              : 'not-supported' as const,
           speakerAssignment: c.provider === 'gpt-4o-transcribe-diarize' || c.provider === 'gemini-live'
             ? 'supported' as const
             : 'not-supported' as const,
           cost: getCostEstimate(c.provider),
         };
       });
-    
+
     setEvaluationResults(newEvaluations);
   }, [configs, results]);
 
@@ -265,9 +336,14 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {configs.map((config) => {
               const status = providerStatuses.find((s) => s.provider === config.provider);
-              const isActiveForProvider = config.provider === 'openai-realtime'
-                ? realtimeAPI.isConnected
-                : activeProviders.has(config.provider);
+              let isActiveForProvider = activeProviders.has(config.provider);
+
+              // Check WebSocket-based providers
+              if (config.provider === 'openai-realtime') {
+                isActiveForProvider = realtimeAPI.isConnected;
+              } else if (config.provider === 'gemini-live') {
+                isActiveForProvider = geminiLive.isStreaming;
+              }
 
               return (
                 <TranscriptionPanel
@@ -306,7 +382,7 @@ function getCostEstimate(provider: STTProvider): string {
     'gemini-live': '$0.00025/1K chars',
     'gpt-4o-transcribe-diarize': '$0.012/min',
     'faster-whisper-large-v3': 'Free (Local)',
-    'whisper-large-v3-turbo': '$0.006/min',
+    'whisper-large-v3-turbo': 'Free (Local)',
   };
   return costs[provider];
 }

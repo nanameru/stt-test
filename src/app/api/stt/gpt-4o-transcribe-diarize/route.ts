@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+interface DiarizedSegment {
+  speaker: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+interface DiarizedTranscription {
+  text: string;
+  segments: DiarizedSegment[];
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -37,24 +49,26 @@ export async function POST(request: NextRequest) {
     });
 
     // Using GPT-4o transcription model with speaker diarization
+    // Docs: https://platform.openai.com/docs/guides/speech-to-text
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
       model: 'gpt-4o-transcribe-diarize',
       language: 'ja',
-      response_format: 'verbose_json',
-      timestamp_granularities: ['segment'],
-    });
+      response_format: 'diarized_json',  // Required for speaker segments
+      // @ts-expect-error - chunking_strategy is required for audio > 30s
+      chunking_strategy: 'auto',
+    }) as unknown as DiarizedTranscription;
 
     const latency = Date.now() - startTime;
 
-    // Extract speaker information if available
+    // Format with speaker labels
     let text = transcription.text;
-    const segments = (transcription as any).segments;
+    const segments = transcription.segments;
 
     if (segments && Array.isArray(segments)) {
-      // Format with speaker labels if available
+      // Format with speaker labels
       text = segments
-        .map((seg: any) => {
+        .map((seg) => {
           const speaker = seg.speaker ? `[${seg.speaker}] ` : '';
           return `${speaker}${seg.text}`;
         })
@@ -67,7 +81,7 @@ export async function POST(request: NextRequest) {
       timestamp: startTime,
       latency,
       isFinal: true,
-      speaker: segments?.[0]?.speaker || undefined,
+      segments: segments || [],
     });
   } catch (error) {
     console.error('GPT-4o Transcribe Diarize error:', error);

@@ -199,3 +199,4 @@
 - [gpt-realtime 紹介記事](https://openai.com/ja-JP/index/introducing-gpt-realtime/)
 - [OpenAI Audio API](https://platform.openai.com/docs/guides/speech-to-text)
 
+
