@@ -7,10 +7,11 @@ interface EvaluationTableProps {
 }
 
 const providerNames: Record<STTProvider, string> = {
-  'openai-whisper': 'OpenAI Whisper',
-  'gemini-pro': 'Gemini 2.5 Pro',
+  'openai-realtime': 'OpenAI Realtime API',
   'gemini-live': 'Gemini Live API',
-  'groq-whisper': 'Groq Whisper',
+  'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
+  'faster-whisper-large-v3': 'Faster Whisper Large V3',
+  'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
 };
 
 const statusIcons: Record<string, string> = {

@@ -19,17 +19,19 @@ interface TranscriptionPanelProps {
 }
 
 const providerNames: Record<STTProvider, string> = {
-  'openai-whisper': 'OpenAI Whisper',
-  'gemini-pro': 'Gemini 2.5 Pro',
+  'openai-realtime': 'OpenAI Realtime API',
   'gemini-live': 'Gemini Live API',
-  'groq-whisper': 'Groq Whisper',
+  'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
+  'faster-whisper-large-v3': 'Faster Whisper Large V3',
+  'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
 };
 
 const providerColors: Record<STTProvider, string> = {
-  'openai-whisper': 'border-green-500',
-  'gemini-pro': 'border-blue-500',
+  'openai-realtime': 'border-green-500',
   'gemini-live': 'border-purple-500',
-  'groq-whisper': 'border-orange-500',
+  'gpt-4o-transcribe-diarize': 'border-blue-500',
+  'faster-whisper-large-v3': 'border-orange-500',
+  'whisper-large-v3-turbo': 'border-pink-500',
 };
 
 export function TranscriptionPanel({

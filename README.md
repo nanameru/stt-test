@@ -5,14 +5,16 @@ A desktop application for evaluating and comparing multiple Speech-to-Text (STT)
 ## Features
 
 - Real-time audio capture from microphone
-- Parallel transcription using 4 STT providers:
-  - **OpenAI Whisper** (whisper-1)
-  - **Groq Whisper** (whisper-large-v3)
-  - **Gemini Pro** (gemini-2.0-flash with audio input)
-  - **Gemini Live** (gemini-2.0-flash with speaker diarization prompt)
+- Parallel transcription using 5 STT providers:
+  - **OpenAI Realtime API** (whisper-1 with real-time capabilities)
+  - **Gemini Live API** (gemini-2.0-flash with speaker diarization)
+  - **GPT-4o Transcribe Diarize** (Advanced speaker diarization)
+  - **Faster Whisper Large V3** (Local/Self-hosted, Japanese-optimized)
+  - **Whisper Large V3 Turbo** (Fast OpenAI model)
 - Latency measurement for each provider
 - Evaluation report generation
-- Speaker diarization support (Gemini providers)
+- Speaker diarization support (GPT-4o Transcribe, Gemini Live)
+- Local processing option (Faster Whisper)
 
 ## Quick Start
 
@@ -33,17 +35,16 @@ cp .env.example .env.local
 Edit `.env.local` and add your API keys:
 
 ```env
-# OpenAI API Key (for Whisper)
+# OpenAI API Key (for Realtime API, GPT-4o Transcribe, Whisper Large V3 Turbo)
 # Get your key at: https://platform.openai.com/api-keys
 OPENAI_API_KEY=sk-...
 
-# Groq API Key (for Whisper Large V3)
-# Get your key at: https://console.groq.com/keys
-GROQ_API_KEY=gsk_...
-
-# Google API Key (for Gemini)
+# Google API Key (for Gemini Live API)
 # Get your key at: https://aistudio.google.com/apikey
 GOOGLE_API_KEY=AIza...
+
+# Optional: Local Faster Whisper server URL (default: http://localhost:8000)
+FASTER_WHISPER_URL=http://localhost:8000
 ```
 
 ### 3. Run the Application
@@ -62,7 +63,19 @@ npm run dev
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 4. Grant Microphone Permission
+### 4. (Optional) Set Up Local Faster Whisper Server
+
+To use the Faster Whisper Large V3 local provider:
+
+```bash
+cd python-server
+pip install -r requirements.txt
+python server.py
+```
+
+The server will run on http://localhost:8000. See [python-server/README.md](python-server/README.md) for details.
+
+### 5. Grant Microphone Permission
 
 When prompted, allow the application to access your microphone.
 
@@ -140,21 +153,27 @@ If you see rate limit errors, wait a few minutes before trying again. Consider:
 
 ```
 stt-test/
-├── electron/           # Electron main process
+├── electron/                    # Electron main process
 │   └── main.js
+├── python-server/               # Local Faster Whisper server
+│   ├── server.py
+│   ├── requirements.txt
+│   └── README.md
 ├── src/
 │   ├── app/
-│   │   ├── api/stt/    # STT API routes
-│   │   │   ├── openai-whisper/
-│   │   │   ├── groq-whisper/
-│   │   │   ├── gemini-pro/
-│   │   │   └── gemini-live/
-│   │   └── page.tsx    # Main UI
-│   ├── components/     # React components
-│   └── lib/            # Utilities and hooks
+│   │   ├── api/stt/             # STT API routes
+│   │   │   ├── openai-realtime/
+│   │   │   ├── gemini-live/
+│   │   │   ├── gpt-4o-transcribe-diarize/
+│   │   │   ├── faster-whisper-large-v3/
+│   │   │   └── whisper-large-v3-turbo/
+│   │   └── page.tsx             # Main UI
+│   ├── components/              # React components
+│   └── lib/                     # Utilities and hooks
 ├── docs/
-│   └── TASK_SPEC.md    # Original requirements (Japanese)
-└── .env.example        # Environment template
+│   ├── TASK_SPEC.md             # Original requirements (Japanese)
+│   └── OPENAI_API_COMPARISON.md # OpenAI API comparison
+└── .env.example                 # Environment template
 ```
 
 ## License

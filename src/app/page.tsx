@@ -26,35 +26,39 @@ interface ProviderError {
 }
 
 const defaultConfigs: STTConfig[] = [
-  { provider: 'openai-whisper', enabled: true },
-  { provider: 'gemini-pro', enabled: true },
+  { provider: 'openai-realtime', enabled: true },
   { provider: 'gemini-live', enabled: true },
-  { provider: 'groq-whisper', enabled: true },
+  { provider: 'gpt-4o-transcribe-diarize', enabled: true },
+  { provider: 'faster-whisper-large-v3', enabled: true },
+  { provider: 'whisper-large-v3-turbo', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
-  'openai-whisper': '/api/stt/openai-whisper',
-  'gemini-pro': '/api/stt/gemini-pro',
+  'openai-realtime': '/api/stt/openai-realtime',
   'gemini-live': '/api/stt/gemini-live',
-  'groq-whisper': '/api/stt/groq-whisper',
+  'gpt-4o-transcribe-diarize': '/api/stt/gpt-4o-transcribe-diarize',
+  'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
+  'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
 };
 
 export default function Home() {
   const [configs, setConfigs] = useState<STTConfig[]>(defaultConfigs);
   const [results, setResults] = useState<Record<STTProvider, TranscriptionResult[]>>({
-    'openai-whisper': [],
-    'gemini-pro': [],
+    'openai-realtime': [],
     'gemini-live': [],
-    'groq-whisper': [],
+    'gpt-4o-transcribe-diarize': [],
+    'faster-whisper-large-v3': [],
+    'whisper-large-v3-turbo': [],
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [activeProviders, setActiveProviders] = useState<Set<STTProvider>>(new Set());
   const [providerStatuses, setProviderStatuses] = useState<ProviderStatus[]>([]);
   const [providerErrors, setProviderErrors] = useState<Record<STTProvider, ProviderError | null>>({
-    'openai-whisper': null,
-    'gemini-pro': null,
+    'openai-realtime': null,
     'gemini-live': null,
-    'groq-whisper': null,
+    'gpt-4o-transcribe-diarize': null,
+    'faster-whisper-large-v3': null,
+    'whisper-large-v3-turbo': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
 
@@ -150,10 +154,11 @@ export default function Home() {
 
   const handleClearResults = useCallback(() => {
     setResults({
-      'openai-whisper': [],
-      'gemini-pro': [],
+      'openai-realtime': [],
       'gemini-live': [],
-      'groq-whisper': [],
+      'gpt-4o-transcribe-diarize': [],
+      'faster-whisper-large-v3': [],
+      'whisper-large-v3-turbo': [],
     });
     setEvaluationResults([]);
   }, []);
@@ -171,11 +176,13 @@ export default function Home() {
           provider: c.provider,
           accuracy: providerResults.length > 0 ? 'Good' : '-',
           latency: `${avgLatency}ms`,
-          diarization: c.provider === 'gemini-pro' || c.provider === 'gemini-live' 
-            ? 'partial' as const 
-            : 'not-supported' as const,
-          speakerAssignment: c.provider === 'gemini-pro' || c.provider === 'gemini-live'
+          diarization: c.provider === 'gpt-4o-transcribe-diarize' || c.provider === 'gemini-live'
+            ? 'supported' as const
+            : c.provider === 'faster-whisper-large-v3'
             ? 'partial' as const
+            : 'not-supported' as const,
+          speakerAssignment: c.provider === 'gpt-4o-transcribe-diarize' || c.provider === 'gemini-live'
+            ? 'supported' as const
             : 'not-supported' as const,
           cost: getCostEstimate(c.provider),
         };
@@ -205,7 +212,7 @@ export default function Home() {
             error={error}
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {configs.map((config) => {
               const status = providerStatuses.find((s) => s.provider === config.provider);
               return (
@@ -241,10 +248,11 @@ export default function Home() {
 
 function getCostEstimate(provider: STTProvider): string {
   const costs: Record<STTProvider, string> = {
-    'openai-whisper': '$0.006/min',
-    'gemini-pro': '$0.00025/1K chars',
+    'openai-realtime': '$0.006/min',
     'gemini-live': '$0.00025/1K chars',
-    'groq-whisper': '$0.001/min',
+    'gpt-4o-transcribe-diarize': '$0.012/min',
+    'faster-whisper-large-v3': 'Free (Local)',
+    'whisper-large-v3-turbo': '$0.006/min',
   };
   return costs[provider];
 }

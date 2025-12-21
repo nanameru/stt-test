@@ -9,24 +9,29 @@ interface ProviderStatus {
 export async function GET() {
   const providers: ProviderStatus[] = [
     {
-      provider: 'openai-whisper',
+      provider: 'openai-realtime',
       configured: !!process.env.OPENAI_API_KEY,
       envVar: 'OPENAI_API_KEY',
-    },
-    {
-      provider: 'groq-whisper',
-      configured: !!process.env.GROQ_API_KEY,
-      envVar: 'GROQ_API_KEY',
-    },
-    {
-      provider: 'gemini-pro',
-      configured: !!process.env.GOOGLE_API_KEY,
-      envVar: 'GOOGLE_API_KEY',
     },
     {
       provider: 'gemini-live',
       configured: !!process.env.GOOGLE_API_KEY,
       envVar: 'GOOGLE_API_KEY',
+    },
+    {
+      provider: 'gpt-4o-transcribe-diarize',
+      configured: !!process.env.OPENAI_API_KEY,
+      envVar: 'OPENAI_API_KEY',
+    },
+    {
+      provider: 'faster-whisper-large-v3',
+      configured: true, // Local - always available if Python server is running
+      envVar: 'FASTER_WHISPER_URL (optional)',
+    },
+    {
+      provider: 'whisper-large-v3-turbo',
+      configured: !!process.env.OPENAI_API_KEY,
+      envVar: 'OPENAI_API_KEY',
     },
   ];
 
