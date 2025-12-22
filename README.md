@@ -5,13 +5,15 @@ A desktop application for evaluating and comparing multiple Speech-to-Text (STT)
 ## Features
 
 - Real-time audio capture from microphone
-- Parallel transcription using 6 STT providers:
+- Parallel transcription using 8 STT providers:
   - **OpenAI Realtime API** (gpt-4o-realtime via WebSocket with ephemeral tokens)
   - **Gemini Live API** (gemini-2.0-flash with speaker diarization)
   - **GPT-4o Transcribe Diarize** (Advanced speaker diarization)
   - **Faster Whisper Large V3** (Local/Self-hosted)
   - **Whisper Large V3 Turbo** (Fast OpenAI model)
-  - **RunPod Whisper** (Cloud GPU-accelerated via RunPod Serverless)
+  - **RunPod Whisper Turbo** (Cloud GPU, fastest)
+  - **RunPod Whisper Large V3** (Cloud GPU, highest accuracy)
+  - **RunPod Whisper Distil Large V3** (Cloud GPU, balanced speed/accuracy)
 - Latency measurement for each provider
 - Evaluation report generation
 - Speaker diarization support (GPT-4o Transcribe, Gemini Live)
@@ -97,6 +99,11 @@ To use the RunPod Whisper provider with cloud GPU acceleration:
 4. **Get your Endpoint ID**: After deployment, copy the Endpoint ID
 5. **Get your API Key**: Visit [https://www.runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) and create an API key
 6. **Add to `.env.local`**: Update the `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID` variables
+
+**Model Options**:
+- **Turbo**: Fastest model, 2-3 second latency
+- **Large V3**: Highest accuracy, 3-5 second latency
+- **Distil Large V3**: Balanced speed/accuracy, 2.5-4 second latency
 
 **Pricing Options**:
 - **Flex Workers** (default): $0.00025/second (~$0.015/min) - 4-8 second latency with cold starts
@@ -194,7 +201,9 @@ stt-test/
 │   │   │   ├── gpt-4o-transcribe-diarize/
 │   │   │   ├── faster-whisper-large-v3/
 │   │   │   ├── whisper-large-v3-turbo/
-│   │   │   └── runpod-whisper/
+│   │   │   ├── runpod-whisper/
+│   │   │   ├── runpod-whisper-large-v3/
+│   │   │   └── runpod-whisper-distil-large-v3/
 │   │   └── page.tsx             # Main UI
 │   ├── components/              # React components
 │   └── lib/                     # Utilities and hooks

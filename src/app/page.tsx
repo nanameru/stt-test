@@ -41,6 +41,8 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'faster-whisper-large-v3', enabled: true },
   { provider: 'whisper-large-v3-turbo', enabled: true },
   { provider: 'runpod-whisper', enabled: true },
+  { provider: 'runpod-whisper-large-v3', enabled: true },
+  { provider: 'runpod-whisper-distil-large-v3', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
@@ -50,6 +52,8 @@ const apiEndpoints: Record<STTProvider, string> = {
   'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
   'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
   'runpod-whisper': '/api/stt/runpod-whisper',
+  'runpod-whisper-large-v3': '/api/stt/runpod-whisper-large-v3',
+  'runpod-whisper-distil-large-v3': '/api/stt/runpod-whisper-distil-large-v3',
 };
 
 function HomeContent() {
@@ -72,6 +76,8 @@ function HomeContent() {
     'faster-whisper-large-v3': [],
     'whisper-large-v3-turbo': [],
     'runpod-whisper': [],
+    'runpod-whisper-large-v3': [],
+    'runpod-whisper-distil-large-v3': [],
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
@@ -89,6 +95,8 @@ function HomeContent() {
     'faster-whisper-large-v3': null,
     'whisper-large-v3-turbo': null,
     'runpod-whisper': null,
+    'runpod-whisper-large-v3': null,
+    'runpod-whisper-distil-large-v3': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
@@ -208,6 +216,8 @@ function HomeContent() {
         'faster-whisper-large-v3': [],
         'whisper-large-v3-turbo': [],
         'runpod-whisper': [],
+        'runpod-whisper-large-v3': [],
+        'runpod-whisper-distil-large-v3': [],
       };
 
       for (const t of loadedSession.transcriptions || []) {
@@ -430,6 +440,8 @@ function HomeContent() {
       'faster-whisper-large-v3': [],
       'whisper-large-v3-turbo': [],
       'runpod-whisper': [],
+      'runpod-whisper-large-v3': [],
+      'runpod-whisper-distil-large-v3': [],
     });
     setEvaluationResults([]);
   }, []);
@@ -586,7 +598,9 @@ function HomeContent() {
       'gpt-4o-transcribe-diarize': 'GPT-4o Diarize',
       'faster-whisper-large-v3': 'Faster Whisper',
       'whisper-large-v3-turbo': 'Whisper Turbo',
-      'runpod-whisper': 'RunPod Whisper',
+      'runpod-whisper': 'RunPod Whisper (Turbo)',
+      'runpod-whisper-large-v3': 'RunPod Whisper (Large V3)',
+      'runpod-whisper-distil-large-v3': 'RunPod Whisper (Distil)',
     };
 
     const rows: string[][] = [];
@@ -787,6 +801,8 @@ function getCostEstimate(provider: STTProvider): string {
     'faster-whisper-large-v3': 'Free (Local)',
     'whisper-large-v3-turbo': 'Free (Local)',
     'runpod-whisper': '$0.00025/sec (~$0.015/min)',
+    'runpod-whisper-large-v3': '$0.00025/sec (~$0.015/min)',
+    'runpod-whisper-distil-large-v3': '$0.00025/sec (~$0.015/min)',
   };
   return costs[provider];
 }
