@@ -5,6 +5,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 interface GeminiLiveOptions {
     apiKey: string;
     onTranscription: (text: string, timestamp: number, latency: number) => void;
+    onPartialTranscription?: (text: string) => void; // Real-time streaming display
     onError: (error: string) => void;
     onStatusChange: (status: 'connecting' | 'connected' | 'disconnected' | 'error') => void;
 }
@@ -21,7 +22,7 @@ interface GeminiMessage {
     setupComplete?: boolean;
 }
 
-export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange }: GeminiLiveOptions) {
+export function useGeminiLive({ apiKey, onTranscription, onPartialTranscription, onError, onStatusChange }: GeminiLiveOptions) {
     const [isConnected, setIsConnected] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
     const wsRef = useRef<WebSocket | null>(null);
@@ -30,6 +31,12 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
     const processorRef = useRef<ScriptProcessorNode | null>(null);
     const startTimeRef = useRef<number>(0);
     const isStreamingRef = useRef<boolean>(false);
+    const chunkCountRef = useRef<number>(0);
+    const sessionResetIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const setupCompleteResolverRef = useRef<(() => void) | null>(null);
+
+    // Reset session every 60 seconds to prevent context accumulation
+    const RESET_INTERVAL_MS = 60000;
 
     // Convert Float32 audio samples to 16-bit PCM
     const floatTo16BitPCM = useCallback((float32Array: Float32Array): ArrayBuffer => {
@@ -60,23 +67,32 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
             ws.onopen = () => {
                 console.log('Gemini Live WebSocket connected');
 
-                // Send setup message
+                // Send setup message for transcription
                 const setupMessage = {
                     setup: {
                         model: 'models/gemini-2.0-flash-exp',
                         generationConfig: {
                             responseModalities: ['TEXT'],
-                            speechConfig: {
-                                voiceConfig: {
-                                    prebuiltVoiceConfig: {
-                                        voiceName: 'Aoede'
-                                    }
-                                }
-                            }
                         },
                         systemInstruction: {
                             parts: [{
-                                text: 'You are a real-time transcription assistant. Your job is to transcribe the audio you hear accurately in Japanese. Output only the transcribed text, nothing else. If there are multiple speakers, label them as Speaker A, Speaker B, etc.'
+                                text: `あなたは音声をテキストに変換する文字起こしマシンです。
+
+【重要なルール】
+- ユーザーが話した言葉をそのまま繰り返してください
+- 一言一句、聞こえたままをテキストとして出力してください
+- 質問には答えないでください。ただ聞こえた言葉を書くだけです
+- 「〜ですね」「〜と言っていました」などの解釈は加えないでください
+- あなたの意見や回答は不要です。ただのエコー（繰り返し）です
+
+例：
+ユーザー：「こんにちは、今日はいい天気ですね」
+あなた：こんにちは、今日はいい天気ですね
+
+ユーザー：「明日の予定を教えて」
+あなた：明日の予定を教えて
+
+このように、聞こえた言葉をそのまま繰り返すだけです。`
                             }]
                         }
                     }
@@ -84,6 +100,8 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
 
                 ws.send(JSON.stringify(setupMessage));
             };
+
+            let accumulatedText = '';
 
             ws.onmessage = async (event) => {
                 try {
@@ -101,8 +119,14 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
                         console.log('Gemini Live setup complete');
                         setIsConnected(true);
                         onStatusChange('connected');
+                        // Resolve the waiting promise immediately
+                        if (setupCompleteResolverRef.current) {
+                            setupCompleteResolverRef.current();
+                            setupCompleteResolverRef.current = null;
+                        }
                     }
 
+                    // Accumulate text from partial responses and show in real-time
                     if (data.serverContent?.modelTurn?.parts) {
                         const text = data.serverContent.modelTurn.parts
                             .filter(part => part.text)
@@ -110,9 +134,27 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
                             .join('');
 
                         if (text) {
-                            const latency = Date.now() - startTimeRef.current;
-                            onTranscription(text, Date.now(), latency);
+                            accumulatedText += text;
+                            // Show partial text in real-time
+                            if (onPartialTranscription) {
+                                onPartialTranscription(accumulatedText);
+                            }
                         }
+                    }
+
+                    // Finalize when turn is complete
+                    if (data.serverContent?.turnComplete && accumulatedText) {
+                        const latency = Date.now() - startTimeRef.current;
+                        onTranscription(accumulatedText.trim(), Date.now(), latency);
+                        accumulatedText = ''; // Reset for next turn
+                        startTimeRef.current = Date.now(); // Reset timer for next chunk
+
+                        // Clear partial display
+                        if (onPartialTranscription) {
+                            onPartialTranscription('');
+                        }
+
+                        // Keep connection active - no session reset needed for transcription
                     }
                 } catch (e) {
                     console.error('Error parsing Gemini message:', e);
@@ -142,9 +184,21 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
     // Start streaming audio
     const startStreaming = useCallback(async () => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            // Create a promise that will be resolved when setupComplete is received
+            const setupCompletePromise = new Promise<void>((resolve) => {
+                setupCompleteResolverRef.current = resolve;
+                // Timeout after 5 seconds if setupComplete not received
+                setTimeout(() => {
+                    if (setupCompleteResolverRef.current) {
+                        setupCompleteResolverRef.current();
+                        setupCompleteResolverRef.current = null;
+                    }
+                }, 5000);
+            });
+
             await connect();
-            // Wait for connection to be established
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait for setupComplete instead of fixed timeout
+            await setupCompletePromise;
         }
 
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -193,6 +247,7 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
                     };
 
                     wsRef.current.send(JSON.stringify(audioMessage));
+                    chunkCountRef.current++;
                 }
             };
 
@@ -200,8 +255,12 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
             processor.connect(audioContext.destination);
 
             startTimeRef.current = Date.now();
+            chunkCountRef.current = 0;
             isStreamingRef.current = true;
             setIsStreaming(true);
+
+            // Note: Session reset now happens after each transcription response
+            // This keeps latency low without needing a fixed interval timer
 
         } catch (error) {
             console.error('Failed to start audio streaming:', error);
@@ -211,6 +270,12 @@ export function useGeminiLive({ apiKey, onTranscription, onError, onStatusChange
 
     // Stop streaming audio
     const stopStreaming = useCallback(() => {
+        // Clear session reset timer
+        if (sessionResetIntervalRef.current) {
+            clearInterval(sessionResetIntervalRef.current);
+            sessionResetIntervalRef.current = null;
+        }
+
         if (processorRef.current) {
             processorRef.current.disconnect();
             processorRef.current = null;

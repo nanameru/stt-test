@@ -26,6 +26,20 @@ export interface EvaluationResult {
   diarization: 'supported' | 'partial' | 'not-supported';
   speakerAssignment: 'supported' | 'partial' | 'not-supported';
   cost: string;
+  // Evaluation metrics
+  similarity?: number;
+  cer?: number;
+  wer?: number;
+  grade?: string;
+  gradeColor?: string;
+  gradeLabel?: string;
+  // AI evaluation fields
+  comment?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  accuracyScore?: number;
+  completenessScore?: number;
+  naturalnessScore?: number;
 }
 
 export interface AudioChunk {

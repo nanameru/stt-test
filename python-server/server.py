@@ -110,7 +110,10 @@ async def transcribe(audio: UploadFile = File(...)):
             language="ja",  # Japanese
             beam_size=5,
             vad_filter=True,  # Voice activity detection
-            vad_parameters=dict(min_silence_duration_ms=500),
+            vad_parameters=dict(
+                min_silence_duration_ms=200,  # Shorter silence detection for chunked audio
+                speech_pad_ms=100,
+            ),
         )
 
         # Collect all segments
@@ -173,7 +176,10 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
             language="ja",  # Japanese
             beam_size=5,
             vad_filter=True,  # Voice activity detection
-            vad_parameters=dict(min_silence_duration_ms=500),
+            vad_parameters=dict(
+                min_silence_duration_ms=200,  # Shorter silence detection for chunked audio
+                speech_pad_ms=100,
+            ),
         )
 
         # Collect all segments

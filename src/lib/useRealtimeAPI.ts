@@ -11,6 +11,7 @@ export function useRealtimeAPI({ onTranscription, onError }: UseRealtimeAPIProps
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<RTCDataChannel | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const lastTranscriptRef = useRef<string>(''); // For deduplication
 
   const connect = useCallback(async () => {
     try {
@@ -90,9 +91,17 @@ export function useRealtimeAPI({ onTranscription, onError }: UseRealtimeAPIProps
 
           // Handle transcription results
           if (message.type === 'conversation.item.input_audio_transcription.completed') {
+            const transcript = message.transcript?.trim();
+
+            // Skip empty or duplicate transcripts
+            if (!transcript || transcript === lastTranscriptRef.current) {
+              return;
+            }
+            lastTranscriptRef.current = transcript;
+
             const result: TranscriptionResult = {
               provider: 'openai-realtime',
-              text: message.transcript,
+              text: transcript,
               timestamp: Date.now(),
               latency: 0, // WebRTC latency is near real-time
               isFinal: true,

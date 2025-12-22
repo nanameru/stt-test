@@ -16,6 +16,7 @@ interface TranscriptionPanelProps {
   onToggle: (enabled: boolean) => void;
   configured?: boolean;
   error?: ProviderError | null;
+  partialText?: string; // Real-time streaming text
 }
 
 const providerNames: Record<STTProvider, string> = {
@@ -42,6 +43,7 @@ export function TranscriptionPanel({
   onToggle,
   configured = true,
   error,
+  partialText = '',
 }: TranscriptionPanelProps) {
   const latestResult = results[results.length - 1];
   const averageLatency = results.length > 0
@@ -112,12 +114,29 @@ export function TranscriptionPanel({
       )}
 
       <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-800 rounded p-3 min-h-[200px] max-h-[300px]">
-        {results.length === 0 ? (
+        {/* Real-time partial text display */}
+        {partialText && (
+          <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-700">
+            <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 mb-1">
+              <span className="flex gap-1">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
+              </span>
+              <span>Listening...</span>
+            </div>
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              {partialText}
+            </p>
+          </div>
+        )}
+
+        {results.length === 0 && !partialText ? (
           <p className="text-zinc-400 text-sm italic">
-            {!configured 
+            {!configured
               ? 'API key not configured. Check .env.local file.'
-              : enabled 
-                ? 'Waiting for audio...' 
+              : enabled
+                ? 'Waiting for audio...'
                 : 'Provider disabled'}
           </p>
         ) : (

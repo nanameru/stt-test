@@ -55,7 +55,6 @@ export async function POST(request: NextRequest) {
       model: 'gpt-4o-transcribe-diarize',
       language: 'ja',
       response_format: 'diarized_json',  // Required for speaker segments
-      // @ts-expect-error - chunking_strategy is required for audio > 30s
       chunking_strategy: 'auto',
     }) as unknown as DiarizedTranscription;
 
