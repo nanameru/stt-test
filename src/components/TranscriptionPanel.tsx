@@ -23,17 +23,15 @@ const providerNames: Record<STTProvider, string> = {
   'openai-realtime': 'OpenAI Realtime API',
   'gemini-live': 'Gemini Live API',
   'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
-  'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
-  'runpod-whisper': 'RunPod Whisper',
-  'runpod-whisper-large-v3': 'RunPod Whisper',
-  'runpod-whisper-distil-large-v3': 'RunPod Whisper',
+  'runpod-whisper': 'Whisper Turbo',
+  'runpod-whisper-large-v3': 'Whisper Large V3',
+  'runpod-whisper-distil-large-v3': 'Whisper Distil V3',
 };
 
 const providerColors: Record<STTProvider, string> = {
   'openai-realtime': 'border-green-500',
   'gemini-live': 'border-purple-500',
   'gpt-4o-transcribe-diarize': 'border-blue-500',
-  'whisper-large-v3-turbo': 'border-pink-500',
   'runpod-whisper': 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950',
   'runpod-whisper-large-v3': 'border-teal-500 bg-teal-50 dark:bg-teal-950',
   'runpod-whisper-distil-large-v3': 'border-sky-500 bg-sky-50 dark:bg-sky-950',
@@ -43,7 +41,6 @@ const modelBadges: Record<STTProvider, string | null> = {
   'openai-realtime': null,
   'gemini-live': null,
   'gpt-4o-transcribe-diarize': null,
-  'whisper-large-v3-turbo': null,
   'runpod-whisper': 'Turbo',
   'runpod-whisper-large-v3': 'Large V3',
   'runpod-whisper-distil-large-v3': 'Distil V3',
