@@ -5,12 +5,13 @@ A desktop application for evaluating and comparing multiple Speech-to-Text (STT)
 ## Features
 
 - Real-time audio capture from microphone
-- Parallel transcription using 5 STT providers:
+- Parallel transcription using 6 STT providers:
   - **OpenAI Realtime API** (gpt-4o-realtime via WebSocket with ephemeral tokens)
   - **Gemini Live API** (gemini-2.0-flash with speaker diarization)
   - **GPT-4o Transcribe Diarize** (Advanced speaker diarization)
   - **Faster Whisper Large V3** (Local/Self-hosted)
   - **Whisper Large V3 Turbo** (Fast OpenAI model)
+  - **RunPod Whisper** (Cloud GPU-accelerated via RunPod Serverless)
 - Latency measurement for each provider
 - Evaluation report generation
 - Speaker diarization support (GPT-4o Transcribe, Gemini Live)
@@ -44,6 +45,12 @@ OPENAI_API_KEY=sk-...
 # Get your key at: https://aistudio.google.com/apikey
 GOOGLE_API_KEY=AIza...
 
+# RunPod API Configuration (for cloud GPU-accelerated Whisper)
+# Get your API key at: https://www.runpod.io/console/user/settings
+# Deploy Faster-Whisper template: https://console.runpod.io/hub/runpod-workers/worker-faster_whisper
+RUNPOD_API_KEY=your-runpod-api-key
+RUNPOD_ENDPOINT_ID=your-endpoint-id
+
 # Optional: Local Faster Whisper server URL (default: http://localhost:8000)
 FASTER_WHISPER_URL=http://localhost:8000
 ```
@@ -76,7 +83,19 @@ python server.py
 
 The server will run on http://localhost:8000. See [python-server/README.md](python-server/README.md) for details.
 
-### 5. Grant Microphone Permission
+### 5. (Optional) Set Up RunPod Cloud GPU Whisper
+
+To use the RunPod Whisper provider with cloud GPU acceleration:
+
+1. **Sign up for RunPod**: Visit [https://www.runpod.io](https://www.runpod.io)
+2. **Deploy Faster-Whisper template**: Go to [https://console.runpod.io/hub/runpod-workers/worker-faster_whisper](https://console.runpod.io/hub/runpod-workers/worker-faster_whisper) and click "Deploy"
+3. **Get your Endpoint ID**: After deployment, copy the Endpoint ID
+4. **Get your API Key**: Visit [https://www.runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) and create an API key
+5. **Add to `.env.local`**: Update the `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID` variables
+
+**Pricing**: RunPod Serverless charges $0.00025/second (approximately $0.015/minute) with per-second billing and automatic scaling.
+
+### 6. Grant Microphone Permission
 
 When prompted, allow the application to access your microphone.
 
@@ -167,7 +186,8 @@ stt-test/
 │   │   │   ├── gemini-live/
 │   │   │   ├── gpt-4o-transcribe-diarize/
 │   │   │   ├── faster-whisper-large-v3/
-│   │   │   └── whisper-large-v3-turbo/
+│   │   │   ├── whisper-large-v3-turbo/
+│   │   │   └── runpod-whisper/
 │   │   └── page.tsx             # Main UI
 │   ├── components/              # React components
 │   └── lib/                     # Utilities and hooks

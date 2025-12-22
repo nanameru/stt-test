@@ -3,7 +3,8 @@ export type STTProvider =
   | 'gemini-live'                // Gemini Live API
   | 'gpt-4o-transcribe-diarize'  // GPT-4o Transcribe with Diarization
   | 'faster-whisper-large-v3'    // Faster Whisper Large V3 (Local)
-  | 'whisper-large-v3-turbo';    // Whisper Large V3 Turbo
+  | 'whisper-large-v3-turbo'     // Whisper Large V3 Turbo
+  | 'runpod-whisper';            // RunPod Cloud GPU Whisper
 
 export interface TranscriptionResult {
   provider: STTProvider;

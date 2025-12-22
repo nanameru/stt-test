@@ -40,6 +40,7 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'gpt-4o-transcribe-diarize', enabled: true },
   { provider: 'faster-whisper-large-v3', enabled: true },
   { provider: 'whisper-large-v3-turbo', enabled: true },
+  { provider: 'runpod-whisper', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
@@ -48,6 +49,7 @@ const apiEndpoints: Record<STTProvider, string> = {
   'gpt-4o-transcribe-diarize': '/api/stt/gpt-4o-transcribe-diarize',
   'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
   'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
+  'runpod-whisper': '/api/stt/runpod-whisper',
 };
 
 function HomeContent() {
@@ -69,6 +71,7 @@ function HomeContent() {
     'gpt-4o-transcribe-diarize': [],
     'faster-whisper-large-v3': [],
     'whisper-large-v3-turbo': [],
+    'runpod-whisper': [],
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
@@ -85,6 +88,7 @@ function HomeContent() {
     'gpt-4o-transcribe-diarize': null,
     'faster-whisper-large-v3': null,
     'whisper-large-v3-turbo': null,
+    'runpod-whisper': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
@@ -203,6 +207,7 @@ function HomeContent() {
         'gpt-4o-transcribe-diarize': [],
         'faster-whisper-large-v3': [],
         'whisper-large-v3-turbo': [],
+        'runpod-whisper': [],
       };
 
       for (const t of loadedSession.transcriptions || []) {
@@ -424,6 +429,7 @@ function HomeContent() {
       'gpt-4o-transcribe-diarize': [],
       'faster-whisper-large-v3': [],
       'whisper-large-v3-turbo': [],
+      'runpod-whisper': [],
     });
     setEvaluationResults([]);
   }, []);
@@ -580,6 +586,7 @@ function HomeContent() {
       'gpt-4o-transcribe-diarize': 'GPT-4o Diarize',
       'faster-whisper-large-v3': 'Faster Whisper',
       'whisper-large-v3-turbo': 'Whisper Turbo',
+      'runpod-whisper': 'RunPod Whisper',
     };
 
     const rows: string[][] = [];
@@ -779,6 +786,7 @@ function getCostEstimate(provider: STTProvider): string {
     'gpt-4o-transcribe-diarize': '$0.012/min',
     'faster-whisper-large-v3': 'Free (Local)',
     'whisper-large-v3-turbo': 'Free (Local)',
+    'runpod-whisper': '$0.00025/sec (~$0.015/min)',
   };
   return costs[provider];
 }
