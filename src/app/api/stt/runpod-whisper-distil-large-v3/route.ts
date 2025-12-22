@@ -4,12 +4,12 @@ const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID;
 
 /**
- * RunPod Serverless Faster-Whisper API endpoint (Distil Large V3)
+ * RunPod Serverless Faster-Whisper API endpoint (Medium)
  * Uses RunPod's cloud GPU infrastructure for balanced speed and accuracy
  *
- * Model: distil-large-v3 (75% smaller, faster, good accuracy)
+ * Model: medium (balanced model, good accuracy)
  * Use case: Balance between speed and accuracy, cost-effective
- * Expected latency: 2.5-4 seconds total (2s recording + 0.5-2s processing)
+ * Expected latency: 2-3 seconds total (2s recording + 0.5-1s processing)
  *
  * Docs: https://github.com/runpod-workers/worker-faster_whisper
  */
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // RunPod Serverless API endpoint URL
     const runpodUrl = `https://api.runpod.ai/v2/${RUNPOD_ENDPOINT_ID}/runsync`;
 
-    // Call RunPod Faster-Whisper API with distil-large-v3 model
+    // Call RunPod Faster-Whisper API with medium model
     const response = await fetch(runpodUrl, {
       method: 'POST',
       headers: {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         input: {
           audio_base64: audioBase64,
-          model: 'distil-large-v3', // Distilled model: faster, smaller, good accuracy
+          model: 'medium', // Medium model: balanced speed and accuracy
           transcription: 'plain_text',
           translate: false,
           language: 'ja', // Japanese

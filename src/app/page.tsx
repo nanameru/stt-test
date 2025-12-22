@@ -582,7 +582,7 @@ function HomeContent() {
       'gpt-4o-transcribe-diarize': 'GPT-4o Diarize',
       'runpod-whisper': 'Whisper Turbo',
       'runpod-whisper-large-v3': 'Whisper Large V3',
-      'runpod-whisper-distil-large-v3': 'Whisper Distil V3',
+      'runpod-whisper-distil-large-v3': 'Whisper Medium',
     };
 
     const rows: string[][] = [];

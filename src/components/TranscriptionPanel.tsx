@@ -25,7 +25,7 @@ const providerNames: Record<STTProvider, string> = {
   'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
   'runpod-whisper': 'Whisper Turbo',
   'runpod-whisper-large-v3': 'Whisper Large V3',
-  'runpod-whisper-distil-large-v3': 'Whisper Distil V3',
+  'runpod-whisper-distil-large-v3': 'Whisper Medium',
 };
 
 const providerColors: Record<STTProvider, string> = {
@@ -43,7 +43,7 @@ const modelBadges: Record<STTProvider, string | null> = {
   'gpt-4o-transcribe-diarize': null,
   'runpod-whisper': 'Turbo',
   'runpod-whisper-large-v3': 'Large V3',
-  'runpod-whisper-distil-large-v3': 'Distil V3',
+  'runpod-whisper-distil-large-v3': 'Medium',
 };
 
 export function TranscriptionPanel({
