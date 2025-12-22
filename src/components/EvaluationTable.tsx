@@ -11,8 +11,10 @@ const providerNames: Record<STTProvider, string> = {
   'openai-realtime': 'OpenAI Realtime API',
   'gemini-live': 'Gemini Live API',
   'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
-  'faster-whisper-large-v3': 'Faster Whisper Large V3',
   'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
+  'runpod-whisper': 'RunPod Whisper (Turbo)',
+  'runpod-whisper-large-v3': 'RunPod Whisper (Large V3)',
+  'runpod-whisper-distil-large-v3': 'RunPod Whisper (Distil V3)',
 };
 
 const statusIcons: Record<string, string> = {

@@ -248,8 +248,7 @@ function HomeContent() {
             latency: `${avgLatency}ms`,
             diarization: r.provider === 'gpt-4o-transcribe-diarize' || r.provider === 'gemini-live'
               ? 'supported' as const
-                ? 'partial' as const
-                : 'not-supported' as const,
+              : 'not-supported' as const,
             speakerAssignment: r.provider === 'gpt-4o-transcribe-diarize' || r.provider === 'gemini-live'
               ? 'supported' as const
               : 'not-supported' as const,
@@ -520,8 +519,7 @@ function HomeContent() {
           latency: `${avgLatency}ms`,
           diarization: eval_.provider === 'gpt-4o-transcribe-diarize' || eval_.provider === 'gemini-live'
             ? 'supported' as const
-              ? 'partial' as const
-              : 'not-supported' as const,
+            : 'not-supported' as const,
           speakerAssignment: eval_.provider === 'gpt-4o-transcribe-diarize' || eval_.provider === 'gemini-live'
             ? 'supported' as const
             : 'not-supported' as const,
