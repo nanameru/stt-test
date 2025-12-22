@@ -27,6 +27,7 @@ const providerNames: Record<STTProvider, string> = {
   'runpod-whisper': 'Whisper Turbo',
   'runpod-whisper-large-v3': 'Whisper Large V3',
   'runpod-whisper-distil-large-v3': 'Whisper Medium',
+  'kotoba-whisper': 'Kotoba Whisper v2.2',
 };
 
 const providerColors: Record<STTProvider, string> = {
@@ -36,6 +37,7 @@ const providerColors: Record<STTProvider, string> = {
   'runpod-whisper': 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950',
   'runpod-whisper-large-v3': 'border-teal-500 bg-teal-50 dark:bg-teal-950',
   'runpod-whisper-distil-large-v3': 'border-sky-500 bg-sky-50 dark:bg-sky-950',
+  'kotoba-whisper': 'border-orange-500 bg-orange-50 dark:bg-orange-950',
 };
 
 const modelBadges: Record<STTProvider, string | null> = {
@@ -45,6 +47,7 @@ const modelBadges: Record<STTProvider, string | null> = {
   'runpod-whisper': 'Turbo',
   'runpod-whisper-large-v3': 'Large V3',
   'runpod-whisper-distil-large-v3': 'Medium',
+  'kotoba-whisper': 'JP v2.2',
 };
 
 export function TranscriptionPanel({

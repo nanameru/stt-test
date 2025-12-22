@@ -14,6 +14,7 @@ const providerNames: Record<STTProvider, string> = {
   'runpod-whisper': 'Whisper Turbo',
   'runpod-whisper-large-v3': 'Whisper Large V3',
   'runpod-whisper-distil-large-v3': 'Whisper Medium',
+  'kotoba-whisper': 'Kotoba Whisper v2.2',
 };
 
 const statusIcons: Record<string, string> = {

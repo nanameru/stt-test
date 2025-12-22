@@ -4,7 +4,8 @@ export type STTProvider =
   | 'gpt-4o-transcribe-diarize'        // GPT-4o Transcribe with Diarization
   | 'runpod-whisper'                   // RunPod Cloud GPU Whisper (Turbo)
   | 'runpod-whisper-large-v3'          // RunPod Cloud GPU Whisper (Large V3)
-  | 'runpod-whisper-distil-large-v3';  // RunPod Cloud GPU Whisper (Distil Large V3)
+  | 'runpod-whisper-distil-large-v3'   // RunPod Cloud GPU Whisper (Distil Large V3)
+  | 'kotoba-whisper';                  // Kotoba Whisper v2.2 (Japanese-optimized)
 
 export interface TranscriptionResult {
   provider: STTProvider;

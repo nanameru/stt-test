@@ -41,6 +41,7 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'runpod-whisper', enabled: true },
   { provider: 'runpod-whisper-large-v3', enabled: true },
   { provider: 'runpod-whisper-distil-large-v3', enabled: true },
+  { provider: 'kotoba-whisper', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
@@ -50,6 +51,7 @@ const apiEndpoints: Record<STTProvider, string> = {
   'runpod-whisper': '/api/stt/runpod-whisper',
   'runpod-whisper-large-v3': '/api/stt/runpod-whisper-large-v3',
   'runpod-whisper-distil-large-v3': '/api/stt/runpod-whisper-distil-large-v3',
+  'kotoba-whisper': '/api/stt/kotoba-whisper',
 };
 
 function HomeContent() {
@@ -72,6 +74,7 @@ function HomeContent() {
     'runpod-whisper': [],
     'runpod-whisper-large-v3': [],
     'runpod-whisper-distil-large-v3': [],
+    'kotoba-whisper': [],
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
@@ -89,6 +92,7 @@ function HomeContent() {
     'runpod-whisper': null,
     'runpod-whisper-large-v3': null,
     'runpod-whisper-distil-large-v3': null,
+    'kotoba-whisper': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
@@ -208,6 +212,7 @@ function HomeContent() {
         'runpod-whisper': [],
         'runpod-whisper-large-v3': [],
         'runpod-whisper-distil-large-v3': [],
+        'kotoba-whisper': [],
       };
 
       for (const t of loadedSession.transcriptions || []) {
@@ -428,6 +433,7 @@ function HomeContent() {
       'runpod-whisper': [],
       'runpod-whisper-large-v3': [],
       'runpod-whisper-distil-large-v3': [],
+      'kotoba-whisper': [],
     });
     setEvaluationResults([]);
   }, []);
@@ -583,6 +589,7 @@ function HomeContent() {
       'runpod-whisper': 'Whisper Turbo',
       'runpod-whisper-large-v3': 'Whisper Large V3',
       'runpod-whisper-distil-large-v3': 'Whisper Medium',
+      'kotoba-whisper': 'Kotoba Whisper v2.2',
     };
 
     const rows: string[][] = [];
@@ -783,6 +790,7 @@ function getCostEstimate(provider: STTProvider): string {
     'runpod-whisper': '$0.00025/sec (~$0.015/min)',
     'runpod-whisper-large-v3': '$0.00025/sec (~$0.015/min)',
     'runpod-whisper-distil-large-v3': '$0.00025/sec (~$0.015/min)',
+    'kotoba-whisper': '$0.00025/sec (~$0.015/min)',
   };
   return costs[provider];
 }
