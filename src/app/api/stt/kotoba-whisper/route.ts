@@ -1,28 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
-const RUNPOD_KOTOBA_ENDPOINT_ID = process.env.RUNPOD_KOTOBA_ENDPOINT_ID;
+const HF_API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 /**
- * RunPod Custom Worker - Kotoba Whisper v2.2
+ * Kotoba Whisper v2.2 via Hugging Face Inference API
  * Japanese-optimized speech recognition model
  *
- * Model: kotoba-tech/kotoba-whisper-v2.2
- * Specialty: High-accuracy Japanese transcription
- * Expected latency: 2-4 seconds (Active Workers)
+ * No RunPod setup required - just add HUGGINGFACE_API_KEY to .env.local
  *
- * Hugging Face: https://huggingface.co/kotoba-tech/kotoba-whisper-v2.2
+ * Get your API key at: https://huggingface.co/settings/tokens
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
     // Check if API key is configured
-    if (!RUNPOD_API_KEY || !RUNPOD_KOTOBA_ENDPOINT_ID) {
+    if (!HF_API_KEY) {
       return NextResponse.json(
         {
           errorCode: 'API_KEY_NOT_CONFIGURED',
-          message: 'RunPod API key or Kotoba Endpoint ID not configured in .env.local',
+          message: 'Hugging Face API key not configured in .env.local',
         },
         { status: 500 }
       );
@@ -38,54 +35,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert audio to base64 for RunPod API
+    // Convert audio to array buffer for Hugging Face API
     const audioBuffer = await audioFile.arrayBuffer();
-    const audioBase64 = Buffer.from(audioBuffer).toString('base64');
 
-    // RunPod Custom Worker endpoint URL
-    const runpodUrl = `https://api.runpod.ai/v2/${RUNPOD_KOTOBA_ENDPOINT_ID}/runsync`;
-
-    // Call RunPod Kotoba Whisper Worker
-    const response = await fetch(runpodUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RUNPOD_API_KEY}`,
-      },
-      body: JSON.stringify({
-        input: {
-          audio_base64: audioBase64,
-          language: 'ja', // Japanese
-          task: 'transcribe',
+    // Call Hugging Face Inference API
+    const response = await fetch(
+      'https://api-inference.huggingface.co/models/kotoba-tech/kotoba-whisper-v2.2',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_API_KEY}`,
+          'Content-Type': 'audio/webm',
         },
-      }),
-    });
+        body: audioBuffer,
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('RunPod Kotoba API error:', errorText);
+      console.error('Hugging Face API error:', errorText);
       return NextResponse.json(
         {
-          errorCode: 'RUNPOD_API_ERROR',
-          message: `RunPod API returned ${response.status}: ${errorText}`,
+          errorCode: 'HF_API_ERROR',
+          message: `Hugging Face API returned ${response.status}: ${errorText}`,
         },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-
-    if (data.status === 'FAILED') {
-      return NextResponse.json(
-        {
-          errorCode: 'TRANSCRIPTION_FAILED',
-          message: data.error || 'RunPod Kotoba transcription failed',
-        },
-        { status: 500 }
-      );
-    }
-
-    const transcription = data.output?.transcription || '';
+    const transcription = data.text || '';
     const endTime = Date.now();
     const latency = endTime - startTime;
 
@@ -97,7 +76,7 @@ export async function POST(request: NextRequest) {
       isFinal: true,
     });
   } catch (error) {
-    console.error('Kotoba Whisper error:', error);
+    console.error('Kotoba Whisper HF error:', error);
     return NextResponse.json(
       {
         errorCode: 'INTERNAL_ERROR',
@@ -110,13 +89,12 @@ export async function POST(request: NextRequest) {
 
 // Health check endpoint
 export async function GET() {
-  const configured = !!(RUNPOD_API_KEY && RUNPOD_KOTOBA_ENDPOINT_ID);
+  const configured = !!HF_API_KEY;
   return NextResponse.json({
     provider: 'kotoba-whisper',
     configured,
     envVars: {
-      RUNPOD_API_KEY: !!RUNPOD_API_KEY,
-      RUNPOD_KOTOBA_ENDPOINT_ID: !!RUNPOD_KOTOBA_ENDPOINT_ID,
+      HUGGINGFACE_API_KEY: !!HF_API_KEY,
     },
   });
 }
