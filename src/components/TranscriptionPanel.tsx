@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { TranscriptionResult, STTProvider } from '@/lib/types';
 
 interface ProviderError {
@@ -56,10 +57,18 @@ export function TranscriptionPanel({
   error,
   partialText = '',
 }: TranscriptionPanelProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const latestResult = results[results.length - 1];
   const averageLatency = results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.latency, 0) / results.length)
     : 0;
+
+  // Auto-scroll to bottom when new results are added
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [results.length, partialText]);
 
   const getStatusDisplay = () => {
     if (!configured) {
@@ -129,7 +138,10 @@ export function TranscriptionPanel({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-800 rounded p-3 min-h-[200px] max-h-[300px]">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-800 rounded p-3 min-h-[200px] max-h-[300px]"
+      >
         {/* Real-time partial text display */}
         {partialText && (
           <div className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded border border-blue-200 dark:border-blue-700">
