@@ -38,7 +38,6 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'openai-realtime', enabled: true },
   { provider: 'gemini-live', enabled: true },
   { provider: 'gpt-4o-transcribe-diarize', enabled: true },
-  { provider: 'faster-whisper-large-v3', enabled: true },
   { provider: 'whisper-large-v3-turbo', enabled: true },
   { provider: 'runpod-whisper', enabled: true },
   { provider: 'runpod-whisper-large-v3', enabled: true },
@@ -49,7 +48,6 @@ const apiEndpoints: Record<STTProvider, string> = {
   'openai-realtime': '/api/stt/openai-realtime',
   'gemini-live': '/api/stt/gemini-live',
   'gpt-4o-transcribe-diarize': '/api/stt/gpt-4o-transcribe-diarize',
-  'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
   'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
   'runpod-whisper': '/api/stt/runpod-whisper',
   'runpod-whisper-large-v3': '/api/stt/runpod-whisper-large-v3',
@@ -73,7 +71,6 @@ function HomeContent() {
     'openai-realtime': [],
     'gemini-live': [],
     'gpt-4o-transcribe-diarize': [],
-    'faster-whisper-large-v3': [],
     'whisper-large-v3-turbo': [],
     'runpod-whisper': [],
     'runpod-whisper-large-v3': [],
@@ -92,7 +89,6 @@ function HomeContent() {
     'openai-realtime': null,
     'gemini-live': null,
     'gpt-4o-transcribe-diarize': null,
-    'faster-whisper-large-v3': null,
     'whisper-large-v3-turbo': null,
     'runpod-whisper': null,
     'runpod-whisper-large-v3': null,
@@ -213,7 +209,6 @@ function HomeContent() {
         'openai-realtime': [],
         'gemini-live': [],
         'gpt-4o-transcribe-diarize': [],
-        'faster-whisper-large-v3': [],
         'whisper-large-v3-turbo': [],
         'runpod-whisper': [],
         'runpod-whisper-large-v3': [],
@@ -253,7 +248,6 @@ function HomeContent() {
             latency: `${avgLatency}ms`,
             diarization: r.provider === 'gpt-4o-transcribe-diarize' || r.provider === 'gemini-live'
               ? 'supported' as const
-              : r.provider === 'faster-whisper-large-v3'
                 ? 'partial' as const
                 : 'not-supported' as const,
             speakerAssignment: r.provider === 'gpt-4o-transcribe-diarize' || r.provider === 'gemini-live'
@@ -437,7 +431,6 @@ function HomeContent() {
       'openai-realtime': [],
       'gemini-live': [],
       'gpt-4o-transcribe-diarize': [],
-      'faster-whisper-large-v3': [],
       'whisper-large-v3-turbo': [],
       'runpod-whisper': [],
       'runpod-whisper-large-v3': [],
@@ -527,7 +520,6 @@ function HomeContent() {
           latency: `${avgLatency}ms`,
           diarization: eval_.provider === 'gpt-4o-transcribe-diarize' || eval_.provider === 'gemini-live'
             ? 'supported' as const
-            : eval_.provider === 'faster-whisper-large-v3'
               ? 'partial' as const
               : 'not-supported' as const,
           speakerAssignment: eval_.provider === 'gpt-4o-transcribe-diarize' || eval_.provider === 'gemini-live'
@@ -596,7 +588,6 @@ function HomeContent() {
       'openai-realtime': 'OpenAI Realtime',
       'gemini-live': 'Gemini Live',
       'gpt-4o-transcribe-diarize': 'GPT-4o Diarize',
-      'faster-whisper-large-v3': 'Faster Whisper',
       'whisper-large-v3-turbo': 'Whisper Turbo',
       'runpod-whisper': 'RunPod Whisper (Turbo)',
       'runpod-whisper-large-v3': 'RunPod Whisper (Large V3)',
@@ -798,7 +789,6 @@ function getCostEstimate(provider: STTProvider): string {
     'openai-realtime': '$0.006/min',
     'gemini-live': '$0.00025/1K chars',
     'gpt-4o-transcribe-diarize': '$0.012/min',
-    'faster-whisper-large-v3': 'Free (Local)',
     'whisper-large-v3-turbo': 'Free (Local)',
     'runpod-whisper': '$0.00025/sec (~$0.015/min)',
     'runpod-whisper-large-v3': '$0.00025/sec (~$0.015/min)',

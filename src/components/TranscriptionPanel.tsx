@@ -23,16 +23,30 @@ const providerNames: Record<STTProvider, string> = {
   'openai-realtime': 'OpenAI Realtime API',
   'gemini-live': 'Gemini Live API',
   'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
-  'faster-whisper-large-v3': 'Faster Whisper Large V3',
   'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
+  'runpod-whisper': 'RunPod Whisper',
+  'runpod-whisper-large-v3': 'RunPod Whisper',
+  'runpod-whisper-distil-large-v3': 'RunPod Whisper',
 };
 
 const providerColors: Record<STTProvider, string> = {
   'openai-realtime': 'border-green-500',
   'gemini-live': 'border-purple-500',
   'gpt-4o-transcribe-diarize': 'border-blue-500',
-  'faster-whisper-large-v3': 'border-orange-500',
   'whisper-large-v3-turbo': 'border-pink-500',
+  'runpod-whisper': 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950',
+  'runpod-whisper-large-v3': 'border-teal-500 bg-teal-50 dark:bg-teal-950',
+  'runpod-whisper-distil-large-v3': 'border-sky-500 bg-sky-50 dark:bg-sky-950',
+};
+
+const modelBadges: Record<STTProvider, string | null> = {
+  'openai-realtime': null,
+  'gemini-live': null,
+  'gpt-4o-transcribe-diarize': null,
+  'whisper-large-v3-turbo': null,
+  'runpod-whisper': 'Turbo',
+  'runpod-whisper-large-v3': 'Large V3',
+  'runpod-whisper-distil-large-v3': 'Distil V3',
 };
 
 export function TranscriptionPanel({
@@ -66,10 +80,15 @@ export function TranscriptionPanel({
   const status = getStatusDisplay();
 
   return (
-    <div className={`rounded-lg border-2 ${providerColors[provider]} bg-white dark:bg-zinc-900 p-4 flex flex-col h-full`}>
+    <div className={`rounded-lg border-2 ${providerColors[provider]} p-4 flex flex-col h-full`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-lg">{providerNames[provider]}</h3>
+          {modelBadges[provider] && (
+            <span className="text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-2 py-1 rounded">
+              {modelBadges[provider]}
+            </span>
+          )}
           {!configured && (
             <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded">
               API Key Missing
