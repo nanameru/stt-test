@@ -42,38 +42,119 @@ export async function POST(request: NextRequest) {
     const audioBuffer = await audioFile.arrayBuffer();
     const audioBase64 = Buffer.from(audioBuffer).toString('base64');
 
-    // RunPod Custom Worker endpoint URL
-    const runpodUrl = `https://api.runpod.ai/v2/${RUNPOD_KOTOBA_ENDPOINT_ID}/runsync`;
-
-    // Call RunPod Kotoba Whisper Worker
-    const response = await fetch(runpodUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RUNPOD_API_KEY}`,
+    const runpodBase = `https://api.runpod.ai/v2/${RUNPOD_KOTOBA_ENDPOINT_ID}`;
+    const payload = {
+      input: {
+        audio_base64: audioBase64,
+        language: 'ja',
+        task: 'transcribe',
       },
-      body: JSON.stringify({
-        input: {
-          audio_base64: audioBase64,
-          language: 'ja', // Japanese
-          task: 'transcribe',
-        },
-      }),
+    };
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${RUNPOD_API_KEY}`,
+    };
+
+    // Try runsync first (fastest path). If not available, fall back to /run + polling.
+    let data: any | null = null;
+    const runsyncResponse = await fetch(`${runpodBase}/runsync`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (runsyncResponse.status === 404) {
+      // Fallback: queue-based endpoint (run + status polling)
+      const runResponse = await fetch(`${runpodBase}/run`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!runResponse.ok) {
+        const errorText = await runResponse.text();
+        console.error('RunPod Kotoba API error:', errorText);
+        return NextResponse.json(
+          {
+            errorCode: 'RUNPOD_API_ERROR',
+            message: `RunPod API returned ${runResponse.status}: ${errorText}`,
+          },
+          { status: runResponse.status }
+        );
+      }
+
+      const runData = await runResponse.json();
+      const jobId = runData.id;
+
+      // If output is already present, use it directly.
+      if (runData.output) {
+        data = runData;
+      } else {
+        const pollStart = Date.now();
+        const timeoutMs = 60000;
+        const pollIntervalMs = 1000;
+
+        while (Date.now() - pollStart < timeoutMs) {
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+          const statusResponse = await fetch(`${runpodBase}/status/${jobId}`, {
+            method: 'GET',
+            headers,
+          });
+
+          if (!statusResponse.ok) {
+            const errorText = await statusResponse.text();
+            console.error('RunPod Kotoba API status error:', errorText);
+            return NextResponse.json(
+              {
+                errorCode: 'RUNPOD_STATUS_ERROR',
+                message: `RunPod status API returned ${statusResponse.status}: ${errorText}`,
+              },
+              { status: statusResponse.status }
+            );
+          }
+
+          const statusData = await statusResponse.json();
+
+          if (statusData.status === 'COMPLETED') {
+            data = statusData;
+            break;
+          }
+
+          if (statusData.status === 'FAILED') {
+            return NextResponse.json(
+              {
+                errorCode: 'TRANSCRIPTION_FAILED',
+                message: statusData.error || 'RunPod Kotoba transcription failed',
+              },
+              { status: 500 }
+            );
+          }
+        }
+
+        if (!data) {
+          return NextResponse.json(
+            {
+              errorCode: 'RUNPOD_TIMEOUT',
+              message: 'RunPod Kotoba transcription timed out',
+            },
+            { status: 504 }
+          );
+        }
+      }
+    } else if (!runsyncResponse.ok) {
+      const errorText = await runsyncResponse.text();
       console.error('RunPod Kotoba API error:', errorText);
       return NextResponse.json(
         {
           errorCode: 'RUNPOD_API_ERROR',
-          message: `RunPod API returned ${response.status}: ${errorText}`,
+          message: `RunPod API returned ${runsyncResponse.status}: ${errorText}`,
         },
-        { status: response.status }
+        { status: runsyncResponse.status }
       );
+    } else {
+      data = await runsyncResponse.json();
     }
-
-    const data = await response.json();
 
     if (data.status === 'FAILED') {
       return NextResponse.json(
