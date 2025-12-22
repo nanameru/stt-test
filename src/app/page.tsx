@@ -107,12 +107,28 @@ function HomeContent() {
 
   // Initialize Realtime API WebSocket hook
   const realtimeAPI = useRealtimeAPI({
-    onTranscription: useCallback((result: TranscriptionResult) => {
+    onTranscription: useCallback(async (result: TranscriptionResult) => {
       setResults((prev) => ({
         ...prev,
         'openai-realtime': [...prev['openai-realtime'], result],
       }));
-    }, []),
+
+      // Save to Convex immediately
+      if (currentSessionIdRef.current) {
+        try {
+          await saveTranscription({
+            sessionId: currentSessionIdRef.current,
+            provider: 'openai-realtime',
+            text: result.text,
+            latency: result.latency,
+            timestamp: result.timestamp,
+            isFinal: result.isFinal ?? true,
+          });
+        } catch (error) {
+          console.error('Failed to save OpenAI Realtime transcription to Convex:', error);
+        }
+      }
+    }, [saveTranscription]),
     onError: useCallback((error) => {
       setProviderErrors((prev) => ({
         ...prev,
@@ -128,7 +144,7 @@ function HomeContent() {
   // Initialize Gemini Live WebSocket hook
   const geminiLive = useGeminiLive({
     apiKey: geminiApiKey || '',
-    onTranscription: useCallback((text: string, timestamp: number, latency: number) => {
+    onTranscription: useCallback(async (text: string, timestamp: number, latency: number) => {
       const result: TranscriptionResult = {
         provider: 'gemini-live',
         text,
@@ -140,7 +156,23 @@ function HomeContent() {
         ...prev,
         'gemini-live': [...prev['gemini-live'], result],
       }));
-    }, []),
+
+      // Save to Convex immediately
+      if (currentSessionIdRef.current) {
+        try {
+          await saveTranscription({
+            sessionId: currentSessionIdRef.current,
+            provider: 'gemini-live',
+            text,
+            latency,
+            timestamp,
+            isFinal: true,
+          });
+        } catch (error) {
+          console.error('Failed to save Gemini Live transcription to Convex:', error);
+        }
+      }
+    }, [saveTranscription]),
     onPartialTranscription: useCallback((text: string) => {
       setGeminiPartialText(text);
     }, []),
@@ -395,13 +427,19 @@ function HomeContent() {
     // Stop audio recorder
     stopAudioRecorder();
 
-    // End Convex session and save transcriptions
+    // End Convex session and save transcriptions (for HTTP-based providers only)
     if (currentSessionIdRef.current) {
       try {
         await endSession({ sessionId: currentSessionIdRef.current });
 
-        // Save all transcriptions to Convex
+        // Save transcriptions for HTTP-based providers (WebSocket providers save immediately)
+        const websocketProviders = ['openai-realtime', 'gemini-live'];
         for (const [provider, transcriptions] of Object.entries(results)) {
+          // Skip WebSocket providers as they save immediately on transcription
+          if (websocketProviders.includes(provider)) {
+            continue;
+          }
+
           for (const t of transcriptions) {
             await saveTranscription({
               sessionId: currentSessionIdRef.current,
