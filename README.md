@@ -89,11 +89,18 @@ To use the RunPod Whisper provider with cloud GPU acceleration:
 
 1. **Sign up for RunPod**: Visit [https://www.runpod.io](https://www.runpod.io)
 2. **Deploy Faster-Whisper template**: Go to [https://console.runpod.io/hub/runpod-workers/worker-faster_whisper](https://console.runpod.io/hub/runpod-workers/worker-faster_whisper) and click "Deploy"
-3. **Get your Endpoint ID**: After deployment, copy the Endpoint ID
-4. **Get your API Key**: Visit [https://www.runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) and create an API key
-5. **Add to `.env.local`**: Update the `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID` variables
+3. **Configure for Low Latency (Active Workers)**:
+   - Set **Workers**: Min 1, Max 1 (keeps GPU always ready)
+   - Set **GPU Type**: RTX 4090 or higher
+   - Set **Idle Timeout**: 5 seconds
+   - This eliminates cold start delays for ~2-3 second total latency
+4. **Get your Endpoint ID**: After deployment, copy the Endpoint ID
+5. **Get your API Key**: Visit [https://www.runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) and create an API key
+6. **Add to `.env.local`**: Update the `RUNPOD_API_KEY` and `RUNPOD_ENDPOINT_ID` variables
 
-**Pricing**: RunPod Serverless charges $0.00025/second (approximately $0.015/minute) with per-second billing and automatic scaling.
+**Pricing Options**:
+- **Flex Workers** (default): $0.00025/second (~$0.015/min) - 4-8 second latency with cold starts
+- **Active Workers** (recommended for low latency): $0.34/hour (~$8/day if running 24/7) - 2-3 second latency, no cold starts
 
 ### 6. Grant Microphone Permission
 

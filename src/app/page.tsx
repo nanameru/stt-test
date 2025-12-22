@@ -340,7 +340,7 @@ function HomeContent() {
 
   const { isRecording, error, startRecording: startAudioRecorder, stopRecording: stopAudioRecorder } = useAudioRecorder({
     onAudioChunk: processAudioChunk,
-    chunkInterval: 5000, // 5 seconds for better Whisper transcription quality
+    chunkInterval: 2000, // 2 seconds for lower latency
   });
 
   // Custom handlers to manage both audio recorder and WebSocket APIs

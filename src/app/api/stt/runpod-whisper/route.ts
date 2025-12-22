@@ -6,6 +6,12 @@ const RUNPOD_ENDPOINT_ID = process.env.RUNPOD_ENDPOINT_ID;
 /**
  * RunPod Serverless Faster-Whisper API endpoint
  * Uses RunPod's cloud GPU infrastructure for fast transcription
+ *
+ * Optimized for Active Workers (low latency):
+ * - 2-second audio chunks
+ * - Whisper Turbo model for fastest processing
+ * - Expected latency: 2-3 seconds total (2s recording + 0.5-1s processing)
+ *
  * Docs: https://github.com/runpod-workers/worker-faster_whisper
  */
 export async function POST(request: NextRequest) {
@@ -50,13 +56,13 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         input: {
           audio_base64: audioBase64,
-          model: 'large-v3', // or 'turbo' for faster processing
+          model: 'turbo', // Fastest model for low latency
           transcription: 'plain_text',
           translate: false,
           language: 'ja', // Japanese
           temperature: 0.0,
-          best_of: 5,
-          beam_size: 5,
+          best_of: 1, // Reduce for speed
+          beam_size: 1, // Reduce for speed
         },
       }),
     });
