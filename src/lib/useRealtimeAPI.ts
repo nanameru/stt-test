@@ -67,7 +67,19 @@ export function useRealtimeAPI({ onTranscription, onError }: UseRealtimeAPIProps
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
-            instructions: 'You are a transcription assistant. Transcribe all audio input into text in Japanese.',
+            instructions: `You are a transcription assistant with speaker identification capabilities.
+
+CRITICAL RULES:
+- Transcribe all audio input into Japanese text
+- When you detect different voices speaking, identify them by voice characteristics (pitch, tone, speaking style)
+- Label different speakers as [話者1], [話者2], etc.
+- Output format: [話者X] transcribed text
+- If only one speaker is detected, still use [話者1] prefix
+- Focus on accurate transcription with speaker attribution
+
+Example output:
+[話者1] こんにちは、今日の会議を始めましょう
+[話者2] はい、よろしくお願いします`,
             voice: 'alloy',
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',

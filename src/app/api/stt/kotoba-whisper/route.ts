@@ -7,6 +7,87 @@ const RUNPOD_KOTOBA_ENDPOINT_ID = process.env.RUNPOD_KOTOBA_ENDPOINT_ID;
 // Maximum audio file size (25MB)
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
+// Speaker diarization segment type
+interface DiarizationSegment {
+  speaker: string;
+  start: number;
+  end: number;
+}
+
+// Transcription chunk type
+interface TranscriptionChunk {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Merge transcription chunks with speaker diarization data
+ * Maps each chunk to the most likely speaker based on timestamp overlap
+ */
+function formatWithSpeakers(
+  chunks: TranscriptionChunk[],
+  diarization: DiarizationSegment[]
+): string {
+  if (chunks.length === 0) return '';
+  if (diarization.length === 0) {
+    // No diarization data, return plain text
+    return chunks.map(c => c.text).join(' ');
+  }
+
+  // Map speaker IDs to sequential numbers (話者1, 話者2, etc.)
+  const speakerMap = new Map<string, number>();
+  let speakerCount = 0;
+
+  const result: string[] = [];
+  let currentSpeaker: string | null = null;
+  let currentText: string[] = [];
+
+  for (const chunk of chunks) {
+    // Find the speaker segment that best overlaps with this chunk
+    let bestSpeaker = 'SPEAKER_00';
+    let bestOverlap = 0;
+
+    for (const segment of diarization) {
+      const overlapStart = Math.max(chunk.start, segment.start);
+      const overlapEnd = Math.min(chunk.end, segment.end);
+      const overlap = Math.max(0, overlapEnd - overlapStart);
+
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestSpeaker = segment.speaker;
+      }
+    }
+
+    // Assign sequential speaker number if not seen before
+    if (!speakerMap.has(bestSpeaker)) {
+      speakerCount++;
+      speakerMap.set(bestSpeaker, speakerCount);
+    }
+
+    const speakerNum = speakerMap.get(bestSpeaker)!;
+    const speakerLabel = `話者${speakerNum}`;
+
+    if (currentSpeaker !== speakerLabel) {
+      // Flush previous speaker's text
+      if (currentSpeaker && currentText.length > 0) {
+        result.push(`[${currentSpeaker}] ${currentText.join('')}`);
+      }
+      currentSpeaker = speakerLabel;
+      currentText = [chunk.text];
+    } else {
+      currentText.push(chunk.text);
+    }
+  }
+
+  // Flush remaining text
+  if (currentSpeaker && currentText.length > 0) {
+    result.push(`[${currentSpeaker}] ${currentText.join('')}`);
+  }
+
+  return result.join('\n');
+}
+
 /**
  * RunPod Custom Worker - Kotoba Whisper v2.2
  * Japanese-optimized speech recognition model
@@ -83,6 +164,7 @@ export async function POST(request: NextRequest) {
         enable_denoise: true, // Enable DeepFilterNet3 noise suppression
         enable_dereverberation: true, // Enable WPE dereverberation
         enable_vad: true, // Enable Silero VAD for voice activity detection
+        enable_diarization: true, // Enable pyannote speaker diarization
       },
     };
 
@@ -202,15 +284,26 @@ export async function POST(request: NextRequest) {
     }
 
     const transcription = data.output?.transcription || '';
+    const diarization = data.output?.diarization || [];
+    const chunks = data.output?.chunks || [];
     const endTime = Date.now();
     const latency = endTime - startTime;
 
+    // Format transcription with speaker labels if diarization is available
+    let formattedText = transcription;
+    if (diarization.length > 0 && chunks.length > 0) {
+      // Merge transcription chunks with speaker information
+      formattedText = formatWithSpeakers(chunks, diarization);
+    }
+
     return NextResponse.json({
       provider: 'kotoba-whisper',
-      text: transcription,
+      text: formattedText,
       timestamp: startTime,
       latency,
       isFinal: true,
+      diarization: diarization, // Include raw diarization data
+      chunks: chunks, // Include timestamped chunks
     });
   } catch (error) {
     console.error('Kotoba Whisper error:', error);

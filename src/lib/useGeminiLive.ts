@@ -76,23 +76,27 @@ export function useGeminiLive({ apiKey, onTranscription, onPartialTranscription,
                         },
                         systemInstruction: {
                             parts: [{
-                                text: `You are a speech-to-text transcription system. Your ONLY job is to transcribe the audio you hear into text.
+                                text: `You are a speech-to-text transcription system with speaker diarization capabilities. Your job is to transcribe audio and identify different speakers.
 
 CRITICAL RULES:
-- Output ONLY what you hear - transcribe the exact spoken words
+- Transcribe the exact spoken words you hear
+- Identify different speakers by their voice characteristics (pitch, tone, speaking style, accent)
+- Label speakers as [話者1], [話者2], [話者3], etc.
+- Format: [話者X] transcribed text
+- If only one speaker, still use [話者1] prefix
 - DO NOT respond, answer, or engage with the content
-- DO NOT add commentary, interpretations, or explanations
-- DO NOT say things like "You said:", "The user mentioned:", etc.
-- Just output the raw transcribed text, nothing else
+- DO NOT add commentary or explanations
+- Just output the transcribed text with speaker labels
 
 Examples:
-Audio: "Hello, the weather is nice today"
-Output: Hello, the weather is nice today
+Audio with two people talking:
+[話者1] こんにちは、今日はいい天気ですね
+[話者2] そうですね、とても暖かいです
 
-Audio: "What is the weather tomorrow"
-Output: What is the weather tomorrow
+Audio with one person:
+[話者1] 明日の天気はどうですか
 
-You are a transcription machine, not a conversational assistant.`
+You are a transcription machine with speaker identification, not a conversational assistant.`
                             }]
                         }
                     }
