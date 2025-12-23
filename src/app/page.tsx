@@ -9,9 +9,11 @@ import { useAudioRecorder } from '@/lib/useAudioRecorder';
 import { useRealtimeAPI } from '@/lib/useRealtimeAPI';
 import { useGeminiLive } from '@/lib/useGeminiLive';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
+import { Sidebar } from '@/components/Sidebar';
 import { RecordingControls } from '@/components/RecordingControls';
 import { EvaluationTable } from '@/components/EvaluationTable';
 import { TranscriptionResult, STTProvider, STTConfig, EvaluationResult } from '@/lib/types';
+import { providerNames } from '@/lib/constants';
 import { evaluateTranscription, getGrade, GroundTruth } from '@/lib/evaluation';
 import groundTruthData from '@/data/ground-truth.json';
 import Link from 'next/link';
@@ -117,6 +119,17 @@ function HomeContent() {
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [geminiPartialText, setGeminiPartialText] = useState<string>(''); // Real-time transcription display
+  const [selectedProvider, setSelectedProvider] = useState<STTProvider | null>(null);
+
+  // Set default selected provider
+  useEffect(() => {
+    if (!selectedProvider) {
+      const firstEnabled = configs.find(c => c.enabled);
+      if (firstEnabled) {
+        setSelectedProvider(firstEnabled.provider);
+      }
+    }
+  }, [configs, selectedProvider]);
 
   // Convex mutations for data persistence
   const createSession = useMutation(api.sessions.create);
@@ -762,136 +775,186 @@ function HomeContent() {
   }, [results, evaluationResults, loadedSession]);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black p-6">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-8 flex justify-between items-start">
+    <div className="flex h-screen bg-zinc-50 dark:bg-black overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar
+        configs={configs}
+        selectedProvider={selectedProvider}
+        onSelectProvider={setSelectedProvider}
+        onToggleProvider={handleToggleProvider}
+        activeProviders={new Set(
+          configs
+            .filter(c => {
+              if (!isRecording) return false;
+              if (!c.enabled) return false;
+              // For streaming providers, check connection status
+              if (c.provider === 'openai-realtime') return realtimeAPI.isConnected;
+              if (c.provider === 'gemini-live') return geminiLive.isStreaming;
+              return true;
+            })
+            .map(c => c.provider)
+        )}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header */}
+        <header className="flex-shrink-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 p-4 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
               {viewingSessionId ? '📂 セッション詳細' : 'Real-time STT Evaluation'}
+              {viewingSessionId && loadedSession && (
+                <span className="text-sm font-normal text-zinc-500">
+                  - {new Date(loadedSession.startTime).toLocaleString('ja-JP')}
+                </span>
+              )}
             </h1>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-2">
-              {viewingSessionId && loadedSession
-                ? `${new Date(loadedSession.startTime).toLocaleString('ja-JP')} の録音データ`
-                : 'Compare multiple Speech-to-Text APIs in real-time'}
-            </p>
+          </div>
+          <div className="flex gap-3">
             {viewingSessionId && (
               <Link
                 href="/"
-                className="inline-block mt-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg transition-colors text-sm"
               >
                 ← 新規録音に戻る
               </Link>
             )}
-          </div>
-          <div className="flex gap-3">
             {Object.values(results).some(r => r.length > 0) && (
               <button
                 onClick={downloadSessionCSV}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm flex items-center gap-2"
               >
                 📥 CSV出力
               </button>
             )}
             <Link
               href="/history"
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-sm flex items-center gap-2"
             >
               📋 履歴を見る
             </Link>
           </div>
         </header>
 
-        <div className="space-y-6">
-          <RecordingControls
-            isRecording={isRecording}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-            onClearResults={handleClearResults}
-            error={error}
-          />
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-5xl mx-auto space-y-6 pb-20">
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {configs.map((config) => {
-              const status = providerStatuses.find((s) => s.provider === config.provider);
-              let isActiveForProvider = activeProviders.has(config.provider);
+            {/* Recording Controls */}
+            <RecordingControls
+              isRecording={isRecording}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              onClearResults={handleClearResults}
+              error={error}
+            />
 
-              // Check WebSocket-based providers
-              if (config.provider === 'openai-realtime') {
-                isActiveForProvider = realtimeAPI.isConnected;
-              } else if (config.provider === 'gemini-live') {
-                isActiveForProvider = geminiLive.isStreaming;
-              }
+            {/* Selected Provider View */}
+            {selectedProvider ? (
+              <div className="h-[600px] bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
+                {(() => {
+                  const config = configs.find(c => c.provider === selectedProvider);
+                  if (!config) return null;
 
-              return (
-                <TranscriptionPanel
-                  key={config.provider}
-                  provider={config.provider}
-                  results={results[config.provider]}
-                  isActive={isActiveForProvider}
-                  enabled={config.enabled}
-                  onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
-                  configured={healthLoading ? true : status?.configured ?? true}
-                  error={providerErrors[config.provider]}
-                  partialText={config.provider === 'gemini-live' ? geminiPartialText : undefined}
-                />
-              );
-            })}
-          </div>
+                  const status = providerStatuses.find((s) => s.provider === selectedProvider);
+                  let isActiveForProvider = false;
 
-          <div className="flex flex-col items-center gap-3">
-            {/* Show message if viewing a saved session without evaluation */}
-            {viewingSessionId && loadedSession && !loadedSession.evaluation && evaluationResults.length === 0 && (
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
-                <p className="text-amber-800 dark:text-amber-200 text-sm">
-                  ⚠️ このセッションにはまだAI評価レポートがありません。下のボタンで生成してください。
-                </p>
+                  if (isRecording && config.enabled) {
+                    isActiveForProvider = true;
+                    // Check WebSocket-based providers status if needed
+                    if (config.provider === 'openai-realtime') {
+                      isActiveForProvider = realtimeAPI.isConnected;
+                    } else if (config.provider === 'gemini-live') {
+                      isActiveForProvider = geminiLive.isStreaming;
+                    }
+                  }
+
+                  return (
+                    <TranscriptionPanel
+                      key={selectedProvider}
+                      provider={selectedProvider}
+                      results={results[selectedProvider]}
+                      isActive={isActiveForProvider}
+                      enabled={config.enabled}
+                      onToggle={(enabled) => handleToggleProvider(selectedProvider, enabled)}
+                      configured={healthLoading ? true : status?.configured ?? true}
+                      error={providerErrors[selectedProvider]}
+                      partialText={selectedProvider === 'gemini-live' ? geminiPartialText : undefined}
+                    />
+                  );
+                })()}
+              </div>
+            ) : (
+              <div className="h-[400px] flex items-center justify-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
+                <div className="text-center text-zinc-500">
+                  <p className="mb-2 text-lg">👈 左のメニューからモデルを選択してください</p>
+                  <p className="text-sm">複数のモデルを有効にして同時に実行することができます</p>
+                </div>
               </div>
             )}
-            <button
-              onClick={generateEvaluation}
-              disabled={evaluationLoading}
-              className="px-6 py-3 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {evaluationLoading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  🤖 Gemini 3 Proで評価中...
-                </>
-              ) : (
-                <>🤖 AI評価レポートを生成</>
-              )}
-            </button>
-          </div>
 
-          {/* AI Evaluation Summary */}
-          {aiEvaluationSummary && (
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
-              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                🤖 AI評価サマリー
-                <span className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
-                  Gemini 3 Pro
-                </span>
-              </h3>
-
-              <p className="text-zinc-700 dark:text-zinc-300 mb-4">{aiEvaluationSummary.summary}</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-zinc-800 p-3 rounded-lg">
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">🏆 最優秀プロバイダー</p>
-                  <p className="font-medium text-zinc-800 dark:text-zinc-200">{aiEvaluationSummary.bestProvider}</p>
+            {/* Evaluation Controls */}
+            <div className="flex flex-col items-center gap-3 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+              {viewingSessionId && loadedSession && !loadedSession.evaluation && evaluationResults.length === 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center w-full">
+                  <p className="text-amber-800 dark:text-amber-200 text-sm">
+                    ⚠️ このセッションにはまだAI評価レポートがありません。下のボタンで生成してください。
+                  </p>
                 </div>
-                <div className="bg-white dark:bg-zinc-800 p-3 rounded-lg">
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">📝 推定正解文</p>
-                  <p className="font-medium text-zinc-800 dark:text-zinc-200 text-sm">{aiEvaluationSummary.groundTruthEstimate}</p>
+              )}
+              <button
+                onClick={generateEvaluation}
+                disabled={evaluationLoading}
+                className="px-6 py-3 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 rounded-lg font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {evaluationLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    🤖 Gemini 3 Proで評価中...
+                  </>
+                ) : (
+                  <>🤖 AI評価レポートを生成</>
+                )}
+              </button>
+            </div>
+
+            {/* AI Evaluation Summary */}
+            {aiEvaluationSummary && (
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-800">
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  🤖 AI評価サマリー
+                  <span className="text-xs bg-purple-100 dark:bg-purple-800 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                    Gemini 3 Pro
+                  </span>
+                </h3>
+
+                <p className="text-zinc-700 dark:text-zinc-300 mb-4">{aiEvaluationSummary.summary}</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white dark:bg-zinc-800 p-3 rounded-lg">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">🏆 最優秀プロバイダー</p>
+                    <p className="font-medium text-zinc-800 dark:text-zinc-200">{aiEvaluationSummary.bestProvider}</p>
+                  </div>
+                  <div className="bg-white dark:bg-zinc-800 p-3 rounded-lg">
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">📝 推定正解文</p>
+                    <p className="font-medium text-zinc-800 dark:text-zinc-200 text-sm line-clamp-3">
+                      {aiEvaluationSummary.groundTruthEstimate}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <EvaluationTable results={evaluationResults} />
+            {evaluationResults.length > 0 && (
+              <div className="pt-4">
+                <h3 className="text-lg font-bold mb-4 text-zinc-800 dark:text-zinc-200">詳細評価データ</h3>
+                <EvaluationTable results={evaluationResults} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

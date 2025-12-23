@@ -2,25 +2,11 @@
 
 import React, { useState } from 'react';
 import { EvaluationResult, STTProvider } from '@/lib/types';
+import { providerNames } from '@/lib/constants';
 
 interface EvaluationTableProps {
   results: EvaluationResult[];
 }
-
-const providerNames: Record<STTProvider, string> = {
-  'openai-realtime': 'OpenAI Realtime API',
-  'gemini-live': 'Gemini Live API',
-  'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
-  'runpod-whisper': 'Whisper Turbo',
-  'runpod-whisper-large-v3': 'Whisper Large V3',
-  'runpod-whisper-distil-large-v3': 'Whisper Medium',
-  'kotoba-whisper': 'Kotoba Whisper v2.2',
-  'reazonspeech': 'ReazonSpeech NeMo v2',
-  'parakeet': 'NVIDIA Parakeet-TDT',
-  'kotoba-whisper-hf': 'Kotoba Whisper (HF)',
-  'faster-whisper-large-v3': 'Faster Whisper Large V3',
-  'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
-};
 
 const statusIcons: Record<string, string> = {
   'supported': '✓',
