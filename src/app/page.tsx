@@ -46,9 +46,6 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'kotoba-whisper', enabled: true },
   { provider: 'reazonspeech', enabled: true },
   { provider: 'parakeet', enabled: true },
-  { provider: 'kotoba-whisper-hf', enabled: true },
-  { provider: 'faster-whisper-large-v3', enabled: true },
-  { provider: 'whisper-large-v3-turbo', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
@@ -61,9 +58,6 @@ const apiEndpoints: Record<STTProvider, string> = {
   'kotoba-whisper': '/api/stt/kotoba-whisper',
   'reazonspeech': '/api/stt/reazonspeech',
   'parakeet': '/api/stt/parakeet',
-  'kotoba-whisper-hf': '/api/stt/kotoba-whisper-hf',
-  'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
-  'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
 };
 
 function HomeContent() {

@@ -7,10 +7,7 @@ export type STTProvider =
   | 'runpod-whisper-distil-large-v3'   // RunPod Cloud GPU Whisper (Distil Large V3)
   | 'kotoba-whisper'                   // Kotoba Whisper v2.2 (Japanese-optimized)
   | 'reazonspeech'                     // ReazonSpeech NeMo v2 (Highest accuracy Japanese)
-  | 'parakeet'                         // NVIDIA Parakeet-TDT (Japanese)
-  | 'kotoba-whisper-hf'                // Kotoba Whisper via Hugging Face
-  | 'faster-whisper-large-v3'          // Local Faster Whisper Large V3
-  | 'whisper-large-v3-turbo';          // Whisper Large V3 Turbo
+  | 'parakeet';                        // NVIDIA Parakeet-TDT (Japanese)
 
 export interface TranscriptionResult {
   provider: STTProvider;
