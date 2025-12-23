@@ -62,6 +62,12 @@ export async function POST(request: NextRequest) {
           temperature: 0.0,
           best_of: 5, // Higher for better accuracy
           beam_size: 5, // Higher for better accuracy
+          enable_vad: true, // Voice Activity Detection to filter silence
+          initial_prompt: 'これは日本語の音声です。', // Japanese context for better recognition
+          condition_on_previous_text: false, // Disable for short clips to prevent repetition
+          word_timestamps: true, // Enable word-level timestamps
+          no_speech_threshold: 0.6, // Threshold for detecting non-speech
+          compression_ratio_threshold: 2.4, // Threshold for compression ratio
         },
       }),
     });

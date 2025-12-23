@@ -104,6 +104,8 @@ function HomeContent() {
   const saveTranscription = useMutation(api.transcriptions.save);
   const saveEvaluation = useMutation(api.evaluations.save);
   const currentSessionIdRef = useRef<Id<'sessions'> | null>(null);
+  const recordingStartTimeRef = useRef<number | null>(null);
+  const recordingEndTimeRef = useRef<number | null>(null);
 
   // Initialize Realtime API WebSocket hook
   const realtimeAPI = useRealtimeAPI({
@@ -380,6 +382,8 @@ function HomeContent() {
 
   // Custom handlers to manage both audio recorder and WebSocket APIs
   const handleStartRecording = useCallback(async () => {
+    recordingStartTimeRef.current = Date.now();
+    recordingEndTimeRef.current = null;
     // Create Convex session for data persistence
     const enabledProviders = configs.filter(c => c.enabled).map(c => c.provider);
     try {
@@ -408,6 +412,7 @@ function HomeContent() {
   }, [configs, realtimeAPI, geminiLive, geminiApiKey, startAudioRecorder, createSession]);
 
   const handleStopRecording = useCallback(async () => {
+    recordingEndTimeRef.current = Date.now();
     // Stop Realtime API
     realtimeAPI.disconnect();
     setActiveProviders((prev) => {
@@ -474,6 +479,8 @@ function HomeContent() {
       'kotoba-whisper': [],
     });
     setEvaluationResults([]);
+    recordingStartTimeRef.current = null;
+    recordingEndTimeRef.current = null;
   }, []);
 
   const generateEvaluation = useCallback(async () => {
@@ -630,6 +637,33 @@ function HomeContent() {
       'kotoba-whisper': 'Kotoba Whisper v2.2',
     };
 
+    const sessionTiming = (() => {
+      if (loadedSession?.startTime) {
+        return {
+          start: loadedSession.startTime,
+          end: loadedSession.endTime ?? Date.now(),
+        };
+      }
+      if (recordingStartTimeRef.current) {
+        return {
+          start: recordingStartTimeRef.current,
+          end: recordingEndTimeRef.current ?? Date.now(),
+        };
+      }
+      const allTimestamps = Object.values(results).flat().map((t) => t.timestamp);
+      if (allTimestamps.length > 0) {
+        return {
+          start: Math.min(...allTimestamps),
+          end: Math.max(...allTimestamps),
+        };
+      }
+      return null;
+    })();
+
+    const durationSeconds = sessionTiming
+      ? Math.max(0, (sessionTiming.end - sessionTiming.start) / 1000)
+      : null;
+
     const rows: string[][] = [];
     // Header with Japanese explanations
     rows.push([
@@ -640,6 +674,8 @@ function HomeContent() {
       '類似度(%)',
       'CER(文字誤り率)(%)',
       'WER(単語誤り率)(%)',
+      '料金計算方法',
+      '料金合計(推定USD)',
       'AIコメント',
       '強み',
       '弱み',
@@ -651,10 +687,15 @@ function HomeContent() {
     for (const provider of providers) {
       const transcripts = results[provider as STTProvider];
       const fullText = transcripts.map(t => t.text).join(' ');
+      const charCount = fullText.length;
       const avgLatency = transcripts.length > 0
         ? Math.round(transcripts.reduce((sum, t) => sum + t.latency, 0) / transcripts.length)
         : 0;
       const evalResult = evaluationResults.find(e => e.provider === provider);
+      const costMethod = formatCostMethod(provider as STTProvider, durationSeconds, charCount);
+      const totalCost = formatCostUSD(
+        calculateTotalCostUSD(provider as STTProvider, durationSeconds, charCount)
+      );
 
       rows.push([
         providerLabels[provider] || provider,
@@ -664,6 +705,8 @@ function HomeContent() {
         evalResult?.similarity?.toFixed(1) || '-',
         evalResult?.cer?.toFixed(1) || '-',
         evalResult?.wer?.toFixed(1) || '-',
+        `"${costMethod.replace(/"/g, '""')}"`,
+        totalCost,
         `"${(evalResult?.comment || '').replace(/"/g, '""')}"`,
         `"${(evalResult?.strengths?.join('、') || '').replace(/"/g, '""')}"`,
         `"${(evalResult?.weaknesses?.join('、') || '').replace(/"/g, '""')}"`,
@@ -821,16 +864,95 @@ function HomeContent() {
 }
 
 function getCostEstimate(provider: STTProvider): string {
-  const costs: Record<STTProvider, string> = {
-    'openai-realtime': '$0.006/min',
-    'gemini-live': '$0.00025/1K chars',
-    'gpt-4o-transcribe-diarize': '$0.012/min',
-    'runpod-whisper': '$0.00025/sec (~$0.015/min)',
-    'runpod-whisper-large-v3': '$0.00025/sec (~$0.015/min)',
-    'runpod-whisper-distil-large-v3': '$0.00025/sec (~$0.015/min)',
-    'kotoba-whisper': '$0.00025/sec (~$0.015/min)',
-  };
-  return costs[provider];
+  return costConfig[provider].display;
+}
+
+type CostUnit = 'per_min' | 'per_sec' | 'per_1k_chars';
+
+const costConfig: Record<STTProvider, { rate: number; unit: CostUnit; display: string; methodLabel: string }> = {
+  'openai-realtime': {
+    rate: 0.006,
+    unit: 'per_min',
+    display: '$0.006/min',
+    methodLabel: '$0.006/分',
+  },
+  'gemini-live': {
+    rate: 0.00025,
+    unit: 'per_1k_chars',
+    display: '$0.00025/1K chars',
+    methodLabel: '$0.00025/1,000文字',
+  },
+  'gpt-4o-transcribe-diarize': {
+    rate: 0.012,
+    unit: 'per_min',
+    display: '$0.012/min',
+    methodLabel: '$0.012/分',
+  },
+  'runpod-whisper': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+  'runpod-whisper-large-v3': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+  'runpod-whisper-distil-large-v3': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+  'kotoba-whisper': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+};
+
+function calculateTotalCostUSD(
+  provider: STTProvider,
+  durationSeconds: number | null,
+  charCount: number | null
+): number | null {
+  const config = costConfig[provider];
+  if (config.unit === 'per_1k_chars') {
+    if (charCount === null) return null;
+    return (charCount / 1000) * config.rate;
+  }
+  if (durationSeconds === null) return null;
+  if (config.unit === 'per_min') {
+    return (durationSeconds / 60) * config.rate;
+  }
+  return durationSeconds * config.rate;
+}
+
+function formatCostMethod(
+  provider: STTProvider,
+  durationSeconds: number | null,
+  charCount: number | null
+): string {
+  const config = costConfig[provider];
+  if (config.unit === 'per_1k_chars') {
+    if (charCount === null) return '-';
+    return `文字数 ${charCount}文字 ÷ 1000 × ${config.methodLabel}`;
+  }
+  if (durationSeconds === null) return '-';
+  if (config.unit === 'per_min') {
+    const minutes = durationSeconds / 60;
+    return `録音時間 ${minutes.toFixed(2)}分 × ${config.methodLabel}`;
+  }
+  const seconds = Math.round(durationSeconds);
+  return `録音時間 ${seconds}秒 × ${config.methodLabel}`;
+}
+
+function formatCostUSD(cost: number | null): string {
+  if (cost === null || !Number.isFinite(cost)) return '-';
+  return `$${cost.toFixed(6)}`;
 }
 
 // Wrap with Suspense for useSearchParams

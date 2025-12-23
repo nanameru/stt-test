@@ -72,9 +72,52 @@ curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/runsync \
     "input": {
       "audio_base64": "BASE64_ENCODED_AUDIO",
       "language": "ja",
-      "task": "transcribe"
+      "task": "transcribe",
+      "enable_denoise": true,
+      "enable_vad": true
     }
   }'
+```
+
+## ✨ 新機能: DeepFilterNet3 + Silero VAD
+
+このワーカーには**DeepFilterNet3 (ノイズ除去)** と **Silero VAD (Voice Activity Detection)** が統合されています。
+
+### 処理パイプライン
+```
+音声入力 → DeepFilterNet3 → Silero VAD → Kotoba Whisper → 文字起こし結果
+```
+
+### DeepFilterNet3の効果
+- 🔊 **高品質ノイズ除去**: 背景ノイズを除去して音声をクリアに
+- 🎯 **認識精度向上**: ノイズによる誤認識を大幅に削減
+- ⚡ **低レイテンシ**: 5msで処理可能なリアルタイム対応
+
+### Silero VADの効果
+- 🔇 **無音フィルタリング**: 音声のない部分を自動的にスキップ
+- ⚡ **処理速度向上**: 無音部分をスキップすることで処理時間を短縮
+
+### パラメータ
+| パラメータ | デフォルト | 説明 |
+|-----------|-----------|------|
+| `enable_denoise` | `true` | DeepFilterNet3を有効にする |
+| `enable_vad` | `true` | Silero VADを有効にする |
+| `language` | `"ja"` | 言語設定 |
+| `task` | `"transcribe"` | タスク種別 |
+
+### レスポンス
+```json
+{
+  "transcription": "認識されたテキスト",
+  "language": "ja",
+  "model": "kotoba-whisper-v2.2",
+  "denoise_applied": true,
+  "vad_applied": true,
+  "chunks": [
+    {"text": "認識", "start": 0.0, "end": 0.5},
+    {"text": "された", "start": 0.5, "end": 1.0}
+  ]
+}
 ```
 
 ## 💰 コスト

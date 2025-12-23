@@ -15,7 +15,10 @@ RUN pip install --no-cache-dir \
     accelerate>=0.20.0 \
     librosa>=0.10.0 \
     soundfile>=0.12.0 \
-    runpod>=1.5.0
+    runpod>=1.5.0 \
+    onnxruntime>=1.15.0 \
+    silero-vad>=5.0 \
+    deepfilternet>=0.5.6
 
 # NOTE: Skip pre-download during image build to avoid GPU requirement on build hosts.
 # The model will be downloaded on first run inside RunPod (GPU environment).

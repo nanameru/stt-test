@@ -26,6 +26,53 @@ import tempfile
 import os
 import subprocess
 from typing import Optional
+import torch
+import torchaudio
+
+# Initialize DeepFilterNet for noise suppression
+print("Loading DeepFilterNet3 model...")
+from df import enhance, init_df
+df_model, df_state, _ = init_df()
+print("DeepFilterNet3 model loaded successfully!")
+
+
+def apply_deepfilter(audio_path: str) -> str:
+    """
+    Apply DeepFilterNet3 noise suppression to audio file.
+    Returns path to denoised audio file.
+    """
+    try:
+        # Load audio
+        audio, sr = torchaudio.load(audio_path)
+        
+        # DeepFilterNet expects 48kHz, resample if needed
+        if sr != 48000:
+            resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=48000)
+            audio = resampler(audio)
+            sr = 48000
+        
+        # Convert to mono if stereo
+        if audio.shape[0] > 1:
+            audio = torch.mean(audio, dim=0, keepdim=True)
+        
+        # Apply DeepFilterNet enhancement
+        enhanced = enhance(df_model, df_state, audio.squeeze().numpy())
+        
+        # Convert back to tensor
+        enhanced_tensor = torch.from_numpy(enhanced).unsqueeze(0)
+        
+        # Resample back to 16kHz for Whisper
+        resampler_down = torchaudio.transforms.Resample(orig_freq=48000, new_freq=16000)
+        enhanced_16k = resampler_down(enhanced_tensor)
+        
+        # Save to temporary file
+        denoised_path = audio_path.replace('.wav', '_denoised.wav')
+        torchaudio.save(denoised_path, enhanced_16k, 16000)
+        
+        return denoised_path
+    except Exception as e:
+        print(f"DeepFilterNet processing failed: {e}")
+        return audio_path  # Return original if denoising fails
 
 
 def convert_webm_to_wav(input_path: str, output_path: str) -> bool:
@@ -92,6 +139,8 @@ async def transcribe(audio: UploadFile = File(...)):
     """
     tmp_file_path = None
     wav_file_path = None
+    denoised_path = None
+    denoise_applied = False
     try:
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_file:
@@ -104,9 +153,16 @@ async def transcribe(audio: UploadFile = File(...)):
         if not convert_webm_to_wav(tmp_file_path, wav_file_path):
             raise HTTPException(status_code=500, detail="Failed to convert audio format")
 
+        # Apply DeepFilterNet3 noise suppression
+        audio_to_transcribe = wav_file_path
+        denoised_path = apply_deepfilter(wav_file_path)
+        if denoised_path != wav_file_path:
+            audio_to_transcribe = denoised_path
+            denoise_applied = True
+
         # Transcribe the audio using large-v3 model
         segments, info = model_large_v3.transcribe(
-            wav_file_path,
+            audio_to_transcribe,
             language="ja",  # Japanese
             beam_size=5,
             vad_filter=True,  # Voice activity detection
@@ -126,12 +182,15 @@ async def transcribe(audio: UploadFile = File(...)):
             os.unlink(tmp_file_path)
         if wav_file_path and os.path.exists(wav_file_path):
             os.unlink(wav_file_path)
+        if denoised_path and os.path.exists(denoised_path) and denoised_path != wav_file_path:
+            os.unlink(denoised_path)
 
         return {
             "text": transcription_text.strip(),
             "language": info.language,
             "language_probability": info.language_probability,
             "duration": info.duration,
+            "denoise_applied": denoise_applied,
         }
 
     except Exception as e:
@@ -158,6 +217,8 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
     """
     tmp_file_path = None
     wav_file_path = None
+    denoised_path = None
+    denoise_applied = False
     try:
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_file:
@@ -170,9 +231,16 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
         if not convert_webm_to_wav(tmp_file_path, wav_file_path):
             raise HTTPException(status_code=500, detail="Failed to convert audio format")
 
+        # Apply DeepFilterNet3 noise suppression
+        audio_to_transcribe = wav_file_path
+        denoised_path = apply_deepfilter(wav_file_path)
+        if denoised_path != wav_file_path:
+            audio_to_transcribe = denoised_path
+            denoise_applied = True
+
         # Transcribe the audio using large-v3-turbo model
         segments, info = model_large_v3_turbo.transcribe(
-            wav_file_path,
+            audio_to_transcribe,
             language="ja",  # Japanese
             beam_size=5,
             vad_filter=True,  # Voice activity detection
@@ -192,12 +260,15 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
             os.unlink(tmp_file_path)
         if wav_file_path and os.path.exists(wav_file_path):
             os.unlink(wav_file_path)
+        if denoised_path and os.path.exists(denoised_path) and denoised_path != wav_file_path:
+            os.unlink(denoised_path)
 
         return {
             "text": transcription_text.strip(),
             "language": info.language,
             "language_probability": info.language_probability,
             "duration": info.duration,
+            "denoise_applied": denoise_applied,
         }
 
     except Exception as e:
