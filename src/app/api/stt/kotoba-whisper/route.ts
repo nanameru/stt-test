@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIP, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 const RUNPOD_API_KEY = process.env.RUNPOD_API_KEY;
 const RUNPOD_KOTOBA_ENDPOINT_ID = process.env.RUNPOD_KOTOBA_ENDPOINT_ID;
+
+// Maximum audio file size (25MB)
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 /**
  * RunPod Custom Worker - Kotoba Whisper v2.2
@@ -17,6 +21,23 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(`stt:${clientIP}`, RATE_LIMITS.stt);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many requests. Please try again later.',
+        },
+        {
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
+
     // Check if API key is configured
     if (!RUNPOD_API_KEY || !RUNPOD_KOTOBA_ENDPOINT_ID) {
       return NextResponse.json(
@@ -34,6 +55,17 @@ export async function POST(request: NextRequest) {
     if (!audioFile) {
       return NextResponse.json(
         { errorCode: 'NO_AUDIO_FILE', message: 'No audio file provided' },
+        { status: 400 }
+      );
+    }
+
+    // File size validation
+    if (audioFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          errorCode: 'FILE_TOO_LARGE',
+          message: `Audio file exceeds maximum size of ${MAX_FILE_SIZE / 1024 / 1024}MB`
+        },
         { status: 400 }
       );
     }

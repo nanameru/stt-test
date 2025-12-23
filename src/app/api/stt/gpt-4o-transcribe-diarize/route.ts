@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { checkRateLimit, getClientIP, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 interface DiarizedSegment {
   speaker: string;
@@ -13,23 +14,44 @@ interface DiarizedTranscription {
   segments: DiarizedSegment[];
 }
 
+// Maximum audio file size (25MB)
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
-  // Check for API key first
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json(
-      {
-        error: 'API key not configured',
-        errorCode: 'API_KEY_MISSING',
-        message: 'OPENAI_API_KEY is not set. Please add it to your .env.local file.',
-        provider: 'gpt-4o-transcribe-diarize',
-      },
-      { status: 400 }
-    );
-  }
-
   try {
+    // Rate limiting check
+    const clientIP = getClientIP(request);
+    const rateLimitResult = checkRateLimit(`stt:${clientIP}`, RATE_LIMITS.stt);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Too many requests. Please try again later.',
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          provider: 'gpt-4o-transcribe-diarize',
+        },
+        {
+          status: 429,
+          headers: createRateLimitHeaders(rateLimitResult),
+        }
+      );
+    }
+
+    // Check for API key first
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        {
+          error: 'API key not configured',
+          errorCode: 'API_KEY_MISSING',
+          message: 'OPENAI_API_KEY is not set. Please add it to your .env.local file.',
+          provider: 'gpt-4o-transcribe-diarize',
+        },
+        { status: 400 }
+      );
+    }
+
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File;
 
@@ -38,6 +60,18 @@ export async function POST(request: NextRequest) {
         {
           error: 'No audio file provided',
           errorCode: 'NO_AUDIO',
+          provider: 'gpt-4o-transcribe-diarize',
+        },
+        { status: 400 }
+      );
+    }
+
+    // File size validation
+    if (audioFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: `Audio file exceeds maximum size of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          errorCode: 'FILE_TOO_LARGE',
           provider: 'gpt-4o-transcribe-diarize',
         },
         { status: 400 }

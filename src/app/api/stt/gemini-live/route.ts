@@ -1,8 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIP, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 // This endpoint provides the API key for client-side WebSocket connection
 // In production, you should use ephemeral tokens instead
 export async function GET(request: NextRequest) {
+  // Rate limiting check
+  const clientIP = getClientIP(request);
+  const rateLimitResult = checkRateLimit(`stt:${clientIP}`, RATE_LIMITS.stt);
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      {
+        error: 'Too many requests. Please try again later.',
+        errorCode: 'RATE_LIMIT_EXCEEDED',
+      },
+      {
+        status: 429,
+        headers: createRateLimitHeaders(rateLimitResult),
+      }
+    );
+  }
+
   if (!process.env.GOOGLE_API_KEY) {
     return NextResponse.json(
       {

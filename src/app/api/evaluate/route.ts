@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import * as fs from 'fs';
 import * as path from 'path';
+import { checkRateLimit, getClientIP, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 interface TranscriptionData {
     provider: string;
@@ -23,6 +24,20 @@ const providerNames: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
     try {
+        // Rate limiting check
+        const clientIP = getClientIP(request);
+        const rateLimitResult = checkRateLimit(`evaluate:${clientIP}`, RATE_LIMITS.evaluate);
+
+        if (!rateLimitResult.success) {
+            return NextResponse.json(
+                { error: 'Too many requests. Please try again later.' },
+                {
+                    status: 429,
+                    headers: createRateLimitHeaders(rateLimitResult),
+                }
+            );
+        }
+
         const apiKey = process.env.GOOGLE_API_KEY;
         if (!apiKey) {
             return NextResponse.json(

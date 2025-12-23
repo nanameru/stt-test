@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit, getClientIP, RATE_LIMITS, createRateLimitHeaders } from '@/lib/rate-limit';
 
 // OpenAI Realtime API endpoint for creating ephemeral client tokens
 // This endpoint creates an ephemeral token for browser-based WebSocket connection
 // Docs: https://platform.openai.com/docs/guides/realtime
 export async function POST(request: NextRequest) {
+  // Rate limiting check
+  const clientIP = getClientIP(request);
+  const rateLimitResult = checkRateLimit(`stt:${clientIP}`, RATE_LIMITS.stt);
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      {
+        error: 'Too many requests. Please try again later.',
+        errorCode: 'RATE_LIMIT_EXCEEDED',
+        provider: 'openai-realtime',
+      },
+      {
+        status: 429,
+        headers: createRateLimitHeaders(rateLimitResult),
+      }
+    );
+  }
+
   // Check for API key first
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json(
