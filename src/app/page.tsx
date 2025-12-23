@@ -849,49 +849,44 @@ function HomeContent() {
               error={error}
             />
 
-            {/* Selected Provider View */}
-            {selectedProvider ? (
-              <div className="h-[600px] bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
-                {(() => {
-                  const config = configs.find(c => c.provider === selectedProvider);
-                  if (!config) return null;
+            {/* Grid View of Enabled Providers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {configs.filter(c => c.enabled).map((config) => {
+                const status = providerStatuses.find((s) => s.provider === config.provider);
+                let isActiveForProvider = activeProviders.has(config.provider);
 
-                  const status = providerStatuses.find((s) => s.provider === selectedProvider);
-                  let isActiveForProvider = false;
+                // Check WebSocket-based providers status
+                if (config.provider === 'openai-realtime') {
+                  isActiveForProvider = realtimeAPI.isConnected;
+                } else if (config.provider === 'gemini-live') {
+                  isActiveForProvider = geminiLive.isStreaming;
+                }
 
-                  if (isRecording && config.enabled) {
-                    isActiveForProvider = true;
-                    // Check WebSocket-based providers status if needed
-                    if (config.provider === 'openai-realtime') {
-                      isActiveForProvider = realtimeAPI.isConnected;
-                    } else if (config.provider === 'gemini-live') {
-                      isActiveForProvider = geminiLive.isStreaming;
-                    }
-                  }
-
-                  return (
+                return (
+                  <div key={config.provider} className="h-[600px] bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden flex flex-col">
                     <TranscriptionPanel
-                      key={selectedProvider}
-                      provider={selectedProvider}
-                      results={results[selectedProvider]}
+                      provider={config.provider}
+                      results={results[config.provider]}
                       isActive={isActiveForProvider}
                       enabled={config.enabled}
-                      onToggle={(enabled) => handleToggleProvider(selectedProvider, enabled)}
+                      onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
                       configured={healthLoading ? true : status?.configured ?? true}
-                      error={providerErrors[selectedProvider]}
-                      partialText={selectedProvider === 'gemini-live' ? geminiPartialText : undefined}
+                      error={providerErrors[config.provider]}
+                      partialText={config.provider === 'gemini-live' ? geminiPartialText : undefined}
                     />
-                  );
-                })()}
-              </div>
-            ) : (
-              <div className="h-[400px] flex items-center justify-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
-                <div className="text-center text-zinc-500">
-                  <p className="mb-2 text-lg">👈 左のメニューからモデルを選択してください</p>
-                  <p className="text-sm">複数のモデルを有効にして同時に実行することができます</p>
+                  </div>
+                );
+              })}
+
+              {configs.every(c => !c.enabled) && (
+                <div className="col-span-full h-[400px] flex items-center justify-center bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700">
+                  <div className="text-center text-zinc-500">
+                    <p className="mb-2 text-lg">⚠️ 表示するモデルがありません</p>
+                    <p className="text-sm">左のメニューからモデルを有効（ON）にしてください</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Evaluation Controls */}
             <div className="flex flex-col items-center gap-3 pt-8 border-t border-zinc-200 dark:border-zinc-800">
