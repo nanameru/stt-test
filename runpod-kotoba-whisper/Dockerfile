@@ -18,7 +18,9 @@ RUN pip install --no-cache-dir \
     runpod>=1.5.0 \
     onnxruntime>=1.15.0 \
     silero-vad>=5.0 \
-    deepfilternet>=0.5.6
+    deepfilternet>=0.5.6 \
+    nara_wpe>=0.0.9 \
+    pyannote.audio>=3.1.0
 
 # NOTE: Skip pre-download during image build to avoid GPU requirement on build hosts.
 # The model will be downloaded on first run inside RunPod (GPU environment).

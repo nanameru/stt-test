@@ -28,12 +28,39 @@ import subprocess
 from typing import Optional
 import torch
 import torchaudio
+import numpy as np
+import soundfile as sf
 
 # Initialize DeepFilterNet for noise suppression
 print("Loading DeepFilterNet3 model...")
 from df import enhance, init_df
 df_model, df_state, _ = init_df()
 print("DeepFilterNet3 model loaded successfully!")
+
+# Initialize nara_wpe for dereverberation
+print("Loading nara_wpe for dereverberation...")
+from nara_wpe.wpe import wpe
+from nara_wpe.utils import stft, istft
+print("nara_wpe loaded successfully!")
+
+# Initialize pyannote for speaker diarization
+print("Loading pyannote speaker diarization model...")
+try:
+    from pyannote.audio import Pipeline
+    HF_TOKEN = os.environ.get("HF_TOKEN", "")
+    if HF_TOKEN:
+        diarization_pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=HF_TOKEN
+        )
+        print("pyannote speaker diarization loaded successfully!")
+    else:
+        diarization_pipeline = None
+        print("Warning: HF_TOKEN not set, speaker diarization disabled")
+except Exception as e:
+    diarization_pipeline = None
+    print(f"Warning: pyannote loading failed: {e}")
+
 
 
 def apply_deepfilter(audio_path: str) -> str:
@@ -73,6 +100,77 @@ def apply_deepfilter(audio_path: str) -> str:
     except Exception as e:
         print(f"DeepFilterNet processing failed: {e}")
         return audio_path  # Return original if denoising fails
+
+
+def apply_wpe(audio_path: str) -> str:
+    """
+    Apply nara_wpe dereverberation to audio file.
+    Returns path to dereverberated audio file.
+    """
+    try:
+        # Load audio
+        audio, sr = sf.read(audio_path)
+        
+        # Ensure mono
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)
+        
+        # WPE parameters
+        stft_options = dict(size=512, shift=128)
+        
+        # Apply STFT
+        Y = stft(audio, **stft_options).T  # Shape: (F, T)
+        Y = Y[np.newaxis, ...]  # Add channel dimension: (1, F, T)
+        
+        # Apply WPE dereverberation
+        Z = wpe(
+            Y,
+            taps=10,
+            delay=3,
+            iterations=3,
+            statistics_mode='full'
+        )
+        
+        # Apply inverse STFT
+        z = istft(Z[0].T, size=stft_options['size'], shift=stft_options['shift'])
+        
+        # Normalize
+        z = z / np.max(np.abs(z)) * 0.9
+        
+        # Save to temporary file
+        dereverb_path = audio_path.replace('.wav', '_dereverb.wav')
+        sf.write(dereverb_path, z, sr)
+        
+        return dereverb_path
+    except Exception as e:
+        print(f"WPE dereverberation failed: {e}")
+        return audio_path  # Return original if dereverberation fails
+
+
+def apply_diarization(audio_path: str) -> list:
+    """
+    Apply pyannote speaker diarization to audio file.
+    Returns list of speaker segments.
+    """
+    if diarization_pipeline is None:
+        return []
+    
+    try:
+        diarization = diarization_pipeline(audio_path)
+        
+        segments = []
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            segments.append({
+                "speaker": speaker,
+                "start": round(turn.start, 2),
+                "end": round(turn.end, 2)
+            })
+        
+        return segments
+    except Exception as e:
+        print(f"Diarization failed: {e}")
+        return []
+
 
 
 def convert_webm_to_wav(input_path: str, output_path: str) -> bool:
@@ -140,7 +238,9 @@ async def transcribe(audio: UploadFile = File(...)):
     tmp_file_path = None
     wav_file_path = None
     denoised_path = None
+    dereverb_path = None
     denoise_applied = False
+    dereverb_applied = False
     try:
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_file:
@@ -159,6 +259,12 @@ async def transcribe(audio: UploadFile = File(...)):
         if denoised_path != wav_file_path:
             audio_to_transcribe = denoised_path
             denoise_applied = True
+
+        # Apply WPE dereverberation
+        dereverb_path = apply_wpe(audio_to_transcribe)
+        if dereverb_path != audio_to_transcribe:
+            audio_to_transcribe = dereverb_path
+            dereverb_applied = True
 
         # Transcribe the audio using large-v3 model
         segments, info = model_large_v3.transcribe(
@@ -184,6 +290,8 @@ async def transcribe(audio: UploadFile = File(...)):
             os.unlink(wav_file_path)
         if denoised_path and os.path.exists(denoised_path) and denoised_path != wav_file_path:
             os.unlink(denoised_path)
+        if dereverb_path and os.path.exists(dereverb_path) and dereverb_path != denoised_path:
+            os.unlink(dereverb_path)
 
         return {
             "text": transcription_text.strip(),
@@ -191,6 +299,7 @@ async def transcribe(audio: UploadFile = File(...)):
             "language_probability": info.language_probability,
             "duration": info.duration,
             "denoise_applied": denoise_applied,
+            "dereverb_applied": dereverb_applied,
         }
 
     except Exception as e:
@@ -218,7 +327,9 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
     tmp_file_path = None
     wav_file_path = None
     denoised_path = None
+    dereverb_path = None
     denoise_applied = False
+    dereverb_applied = False
     try:
         # Save uploaded file to temporary location
         with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as tmp_file:
@@ -237,6 +348,12 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
         if denoised_path != wav_file_path:
             audio_to_transcribe = denoised_path
             denoise_applied = True
+
+        # Apply WPE dereverberation
+        dereverb_path = apply_wpe(audio_to_transcribe)
+        if dereverb_path != audio_to_transcribe:
+            audio_to_transcribe = dereverb_path
+            dereverb_applied = True
 
         # Transcribe the audio using large-v3-turbo model
         segments, info = model_large_v3_turbo.transcribe(
@@ -262,6 +379,8 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
             os.unlink(wav_file_path)
         if denoised_path and os.path.exists(denoised_path) and denoised_path != wav_file_path:
             os.unlink(denoised_path)
+        if dereverb_path and os.path.exists(dereverb_path) and dereverb_path != denoised_path:
+            os.unlink(dereverb_path)
 
         return {
             "text": transcription_text.strip(),
@@ -269,6 +388,7 @@ async def transcribe_turbo(audio: UploadFile = File(...)):
             "language_probability": info.language_probability,
             "duration": info.duration,
             "denoise_applied": denoise_applied,
+            "dereverb_applied": dereverb_applied,
         }
 
     except Exception as e:

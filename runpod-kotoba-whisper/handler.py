@@ -30,6 +30,32 @@ from df import enhance, init_df
 df_model, df_state, _ = init_df()
 print("DeepFilterNet3 model loaded successfully!")
 
+# Initialize nara_wpe for dereverberation
+print("Loading nara_wpe for dereverberation...")
+from nara_wpe.wpe import wpe
+from nara_wpe.utils import stft, istft
+print("nara_wpe loaded successfully!")
+
+# Initialize pyannote for speaker diarization
+print("Loading pyannote speaker diarization model...")
+try:
+    from pyannote.audio import Pipeline
+    HF_TOKEN = os.environ.get("HF_TOKEN", "")
+    if HF_TOKEN:
+        diarization_pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=HF_TOKEN
+        )
+        if device == "cuda":
+            diarization_pipeline.to(torch.device("cuda"))
+        print("pyannote speaker diarization loaded successfully!")
+    else:
+        diarization_pipeline = None
+        print("Warning: HF_TOKEN not set, speaker diarization disabled")
+except Exception as e:
+    diarization_pipeline = None
+    print(f"Warning: pyannote loading failed: {e}")
+
 # Initialize the Kotoba Whisper model
 print("Loading Kotoba Whisper v2.2 model...")
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -83,6 +109,80 @@ def apply_deepfilter(audio_path: str) -> str:
         return audio_path  # Return original if denoising fails
 
 
+def apply_wpe(audio_path: str) -> str:
+    """
+    Apply nara_wpe dereverberation to audio file.
+    Returns path to dereverberated audio file.
+    """
+    try:
+        import soundfile as sf
+        
+        # Load audio
+        audio, sr = sf.read(audio_path)
+        
+        # Ensure mono
+        if len(audio.shape) > 1:
+            audio = np.mean(audio, axis=1)
+        
+        # WPE parameters
+        stft_options = dict(size=512, shift=128)
+        
+        # Apply STFT
+        Y = stft(audio, **stft_options).T  # Shape: (F, T)
+        Y = Y[np.newaxis, ...]  # Add channel dimension: (1, F, T)
+        
+        # Apply WPE dereverberation
+        Z = wpe(
+            Y,
+            taps=10,
+            delay=3,
+            iterations=3,
+            statistics_mode='full'
+        )
+        
+        # Apply inverse STFT
+        z = istft(Z[0].T, size=stft_options['size'], shift=stft_options['shift'])
+        
+        # Normalize
+        z = z / np.max(np.abs(z)) * 0.9
+        
+        # Save to temporary file
+        dereverb_path = audio_path.replace('.webm', '_dereverb.wav')
+        if dereverb_path == audio_path:
+            dereverb_path = audio_path + '_dereverb.wav'
+        sf.write(dereverb_path, z, sr)
+        
+        return dereverb_path
+    except Exception as e:
+        print(f"WPE dereverberation failed: {e}")
+        return audio_path  # Return original if dereverberation fails
+
+
+def apply_diarization(audio_path: str) -> list:
+    """
+    Apply pyannote speaker diarization to audio file.
+    Returns list of speaker segments.
+    """
+    if diarization_pipeline is None:
+        return []
+    
+    try:
+        diarization = diarization_pipeline(audio_path)
+        
+        segments = []
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            segments.append({
+                "speaker": speaker,
+                "start": round(turn.start, 2),
+                "end": round(turn.end, 2)
+            })
+        
+        return segments
+    except Exception as e:
+        print(f"Diarization failed: {e}")
+        return []
+
+
 def apply_vad(audio_path: str, sample_rate: int = 16000) -> str:
     """
     Apply Silero VAD to filter out non-speech segments.
@@ -132,8 +232,10 @@ def handler(job):
             "audio_base64": "base64-encoded audio data",
             "language": "ja",  # optional, defaults to Japanese
             "task": "transcribe",  # or "translate"
+            "enable_denoise": true,  # optional, defaults to True
+            "enable_dereverberation": true,  # optional, defaults to True
             "enable_vad": true,  # optional, defaults to True
-            "enable_denoise": true  # optional, defaults to True
+            "enable_diarization": false  # optional, defaults to False
         }
     }
     """
@@ -154,18 +256,22 @@ def handler(job):
             temp_audio_path = temp_audio.name
 
         denoised_path = None
+        dereverb_path = None
         vad_filtered_path = None
         
         try:
             # Get parameters
             language = job_input.get("language", "ja")
             task = job_input.get("task", "transcribe")
-            enable_vad = job_input.get("enable_vad", True)
             enable_denoise = job_input.get("enable_denoise", True)
+            enable_dereverberation = job_input.get("enable_dereverberation", True)
+            enable_vad = job_input.get("enable_vad", True)
+            enable_diarization = job_input.get("enable_diarization", False)
             
             # Start with original audio
             audio_to_transcribe = temp_audio_path
             denoise_applied = False
+            dereverb_applied = False
             vad_applied = False
             
             # Apply DeepFilterNet3 noise suppression if enabled
@@ -177,6 +283,16 @@ def handler(job):
                         denoise_applied = True
                 except Exception as denoise_error:
                     print(f"DeepFilterNet processing failed, continuing: {denoise_error}")
+            
+            # Apply WPE dereverberation if enabled
+            if enable_dereverberation:
+                try:
+                    dereverb_path = apply_wpe(audio_to_transcribe)
+                    if dereverb_path != audio_to_transcribe:
+                        audio_to_transcribe = dereverb_path
+                        dereverb_applied = True
+                except Exception as dereverb_error:
+                    print(f"WPE dereverberation failed, continuing: {dereverb_error}")
             
             # Apply VAD if enabled
             if enable_vad:
@@ -215,14 +331,21 @@ def handler(job):
                     }
                     for chunk in result["chunks"]
                 ]
+            
+            # Apply speaker diarization if enabled
+            diarization = []
+            if enable_diarization:
+                diarization = apply_diarization(temp_audio_path)
 
             return {
                 "transcription": transcription,
                 "language": language,
                 "model": "kotoba-whisper-v2.2",
                 "denoise_applied": denoise_applied,
+                "dereverb_applied": dereverb_applied,
                 "vad_applied": vad_applied,
                 "chunks": chunks,
+                "diarization": diarization,
             }
 
         finally:
@@ -231,7 +354,9 @@ def handler(job):
                 os.remove(temp_audio_path)
             if denoised_path and os.path.exists(denoised_path) and denoised_path != temp_audio_path:
                 os.remove(denoised_path)
-            if vad_filtered_path and os.path.exists(vad_filtered_path) and vad_filtered_path != temp_audio_path and vad_filtered_path != denoised_path:
+            if dereverb_path and os.path.exists(dereverb_path) and dereverb_path != denoised_path:
+                os.remove(dereverb_path)
+            if vad_filtered_path and os.path.exists(vad_filtered_path) and vad_filtered_path != dereverb_path:
                 os.remove(vad_filtered_path)
 
     except Exception as e:

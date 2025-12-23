@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
         language: 'ja',
         task: 'transcribe',
         enable_denoise: true, // Enable DeepFilterNet3 noise suppression
+        enable_dereverberation: true, // Enable WPE dereverberation
         enable_vad: true, // Enable Silero VAD for voice activity detection
       },
     };
