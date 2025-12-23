@@ -42,6 +42,11 @@ const defaultConfigs: STTConfig[] = [
   { provider: 'runpod-whisper-large-v3', enabled: true },
   { provider: 'runpod-whisper-distil-large-v3', enabled: true },
   { provider: 'kotoba-whisper', enabled: true },
+  { provider: 'reazonspeech', enabled: true },
+  { provider: 'parakeet', enabled: true },
+  { provider: 'kotoba-whisper-hf', enabled: true },
+  { provider: 'faster-whisper-large-v3', enabled: true },
+  { provider: 'whisper-large-v3-turbo', enabled: true },
 ];
 
 const apiEndpoints: Record<STTProvider, string> = {
@@ -52,6 +57,11 @@ const apiEndpoints: Record<STTProvider, string> = {
   'runpod-whisper-large-v3': '/api/stt/runpod-whisper-large-v3',
   'runpod-whisper-distil-large-v3': '/api/stt/runpod-whisper-distil-large-v3',
   'kotoba-whisper': '/api/stt/kotoba-whisper',
+  'reazonspeech': '/api/stt/reazonspeech',
+  'parakeet': '/api/stt/parakeet',
+  'kotoba-whisper-hf': '/api/stt/kotoba-whisper-hf',
+  'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
+  'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
 };
 
 function HomeContent() {
@@ -75,6 +85,11 @@ function HomeContent() {
     'runpod-whisper-large-v3': [],
     'runpod-whisper-distil-large-v3': [],
     'kotoba-whisper': [],
+    'reazonspeech': [],
+    'parakeet': [],
+    'kotoba-whisper-hf': [],
+    'faster-whisper-large-v3': [],
+    'whisper-large-v3-turbo': [],
   });
   const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [evaluationLoading, setEvaluationLoading] = useState(false);
@@ -93,6 +108,11 @@ function HomeContent() {
     'runpod-whisper-large-v3': null,
     'runpod-whisper-distil-large-v3': null,
     'kotoba-whisper': null,
+    'reazonspeech': null,
+    'parakeet': null,
+    'kotoba-whisper-hf': null,
+    'faster-whisper-large-v3': null,
+    'whisper-large-v3-turbo': null,
   });
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
@@ -247,6 +267,11 @@ function HomeContent() {
         'runpod-whisper-large-v3': [],
         'runpod-whisper-distil-large-v3': [],
         'kotoba-whisper': [],
+        'reazonspeech': [],
+        'parakeet': [],
+        'kotoba-whisper-hf': [],
+        'faster-whisper-large-v3': [],
+        'whisper-large-v3-turbo': [],
       };
 
       for (const t of loadedSession.transcriptions || []) {
@@ -477,6 +502,11 @@ function HomeContent() {
       'runpod-whisper-large-v3': [],
       'runpod-whisper-distil-large-v3': [],
       'kotoba-whisper': [],
+      'reazonspeech': [],
+      'parakeet': [],
+      'kotoba-whisper-hf': [],
+      'faster-whisper-large-v3': [],
+      'whisper-large-v3-turbo': [],
     });
     setEvaluationResults([]);
     recordingStartTimeRef.current = null;
@@ -635,6 +665,11 @@ function HomeContent() {
       'runpod-whisper-large-v3': 'Whisper Large V3',
       'runpod-whisper-distil-large-v3': 'Whisper Medium',
       'kotoba-whisper': 'Kotoba Whisper v2.2',
+      'reazonspeech': 'ReazonSpeech NeMo v2',
+      'parakeet': 'NVIDIA Parakeet-TDT',
+      'kotoba-whisper-hf': 'Kotoba Whisper (HF)',
+      'faster-whisper-large-v3': 'Faster Whisper Large V3',
+      'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
     };
 
     const sessionTiming = (() => {
@@ -911,6 +946,36 @@ const costConfig: Record<STTProvider, { rate: number; unit: CostUnit; display: s
     unit: 'per_sec',
     display: '$0.00025/sec (~$0.015/min)',
     methodLabel: '$0.00025/秒',
+  },
+  'reazonspeech': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+  'parakeet': {
+    rate: 0.00025,
+    unit: 'per_sec',
+    display: '$0.00025/sec (~$0.015/min)',
+    methodLabel: '$0.00025/秒',
+  },
+  'kotoba-whisper-hf': {
+    rate: 0,
+    unit: 'per_sec',
+    display: 'Free (HF API)',
+    methodLabel: '無料 (HF API)',
+  },
+  'faster-whisper-large-v3': {
+    rate: 0,
+    unit: 'per_sec',
+    display: 'Free (Local)',
+    methodLabel: '無料 (ローカル)',
+  },
+  'whisper-large-v3-turbo': {
+    rate: 0,
+    unit: 'per_sec',
+    display: 'Free (Local)',
+    methodLabel: '無料 (ローカル)',
   },
 };
 

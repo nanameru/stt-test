@@ -15,6 +15,11 @@ const providerNames: Record<STTProvider, string> = {
   'runpod-whisper-large-v3': 'Whisper Large V3',
   'runpod-whisper-distil-large-v3': 'Whisper Medium',
   'kotoba-whisper': 'Kotoba Whisper v2.2',
+  'reazonspeech': 'ReazonSpeech NeMo v2',
+  'parakeet': 'NVIDIA Parakeet-TDT',
+  'kotoba-whisper-hf': 'Kotoba Whisper (HF)',
+  'faster-whisper-large-v3': 'Faster Whisper Large V3',
+  'whisper-large-v3-turbo': 'Whisper Large V3 Turbo',
 };
 
 const statusIcons: Record<string, string> = {
