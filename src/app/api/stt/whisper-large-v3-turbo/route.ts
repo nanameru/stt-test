@@ -55,6 +55,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create FormData for Python server
+    const pythonFormData = new FormData();
+    pythonFormData.append('audio', audioFile, audioFile.name || 'audio.webm');
+
     const response = await fetch(`${WHISPER_SERVER_URL}/transcribe-turbo`, {
       method: 'POST',
       body: pythonFormData,
