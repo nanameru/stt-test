@@ -12,6 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+# Upgrade pip and install onnx/protobuf first (pre-built wheels to avoid source build issues)
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir \
+    protobuf==3.20.3 \
+    onnx==1.15.0
+
 # Install NeMo and all preprocessing dependencies
 RUN pip install --no-cache-dir \
     nemo_toolkit[asr]>=2.0.0 \
