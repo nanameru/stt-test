@@ -19,8 +19,11 @@ RUN pip install --upgrade pip && \
     onnx==1.15.0
 
 # Install NeMo and all preprocessing dependencies
-RUN pip install --no-cache-dir \
-    nemo_toolkit[asr]>=2.0.0 \
+# Create constraint file to prevent onnx from being rebuilt
+RUN echo "onnx==1.15.0" > /tmp/constraints.txt && \
+    pip install --no-cache-dir \
+    --constraint /tmp/constraints.txt \
+    "nemo_toolkit[asr]>=2.0.0,<2.1.0" \
     huggingface_hub>=0.20.0 \
     runpod>=1.5.0 \
     soundfile>=0.12.0 \
