@@ -22,7 +22,7 @@ RUN pip install --upgrade pip && \
 
 # Install NeMo, FastAPI and all preprocessing dependencies
 # Create constraint file to prevent numpy/onnx from being rebuilt
-RUN echo -e "numpy==1.26.4\nonnx==1.15.0" > /tmp/constraints.txt && \
+RUN printf "numpy==1.26.4\nonnx==1.15.0\n" > /tmp/constraints.txt && \
     pip install --no-cache-dir \
     --constraint /tmp/constraints.txt \
     "nemo_toolkit[asr]>=2.0.0,<2.1.0" \
