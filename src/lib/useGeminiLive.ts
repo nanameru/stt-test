@@ -70,7 +70,7 @@ export function useGeminiLive({ apiKey, onTranscription, onPartialTranscription,
                 // Send setup message for transcription
                 const setupMessage = {
                     setup: {
-                        model: 'models/gemini-2.0-flash-exp',
+                        model: 'models/gemini-2.0-flash-live-001',
                         generationConfig: {
                             responseModalities: ['TEXT'],
                         },

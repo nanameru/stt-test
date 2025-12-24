@@ -21,12 +21,12 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!process.env.GOOGLE_API_KEY) {
+  if (!process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY) {
     return NextResponse.json(
       {
         error: 'API key not configured',
         errorCode: 'API_KEY_MISSING',
-        message: 'GOOGLE_API_KEY is not set. Please add it to your .env.local file.',
+        message: 'NEXT_PUBLIC_GOOGLE_AI_API_KEY is not set. Please add it to your .env.local file.',
       },
       { status: 400 }
     );
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   // Return the API key for WebSocket connection
   // WARNING: In production, use ephemeral tokens for security
   return NextResponse.json({
-    apiKey: process.env.GOOGLE_API_KEY,
+    apiKey: process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY,
   });
 }
 
@@ -43,12 +43,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
-  if (!process.env.GOOGLE_API_KEY) {
+  if (!process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY) {
     return NextResponse.json(
       {
         error: 'API key not configured',
         errorCode: 'API_KEY_MISSING',
-        message: 'GOOGLE_API_KEY is not set. Please add it to your .env.local file.',
+        message: 'NEXT_PUBLIC_GOOGLE_AI_API_KEY is not set. Please add it to your .env.local file.',
         provider: 'gemini-live',
       },
       { status: 400 }
