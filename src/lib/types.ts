@@ -1,13 +1,17 @@
 export type STTProvider =
   | 'openai-realtime'                 // OpenAI Realtime API
   | 'gemini-live'                      // Gemini Live API
+  | 'elevenlabs-scribe'                // ElevenLabs Scribe v2 Realtime
   | 'gpt-4o-transcribe-diarize'        // GPT-4o Transcribe with Diarization
   | 'runpod-whisper'                   // RunPod Cloud GPU Whisper (Turbo)
   | 'runpod-whisper-large-v3'          // RunPod Cloud GPU Whisper (Large V3)
   | 'runpod-whisper-distil-large-v3'   // RunPod Cloud GPU Whisper (Distil Large V3)
   | 'kotoba-whisper'                   // Kotoba Whisper v2.2 (Japanese-optimized)
   | 'reazonspeech'                     // ReazonSpeech NeMo v2 (Highest accuracy Japanese)
-  | 'parakeet';                        // NVIDIA Parakeet-TDT (Japanese)
+  | 'parakeet'                         // NVIDIA Parakeet-TDT (Japanese)
+  | 'kotoba-whisper-hf'                // Kotoba Whisper (Hugging Face API)
+  | 'faster-whisper-large-v3'          // Faster Whisper Large V3 (Local)
+  | 'whisper-large-v3-turbo';          // Whisper Large V3 Turbo (Local)
 
 export interface TranscriptionResult {
   provider: STTProvider;

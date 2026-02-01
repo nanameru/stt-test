@@ -8,6 +8,7 @@ import { Id } from '../../convex/_generated/dataModel';
 import { useAudioRecorder } from '@/lib/useAudioRecorder';
 import { useRealtimeAPI } from '@/lib/useRealtimeAPI';
 import { useGeminiLive } from '@/lib/useGeminiLive';
+import { useElevenLabsScribe } from '@/lib/useElevenLabsScribe';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import { Sidebar } from '@/components/Sidebar';
 import { RecordingControls } from '@/components/RecordingControls';
@@ -39,6 +40,7 @@ interface ProviderError {
 const defaultConfigs: STTConfig[] = [
   { provider: 'openai-realtime', enabled: true },
   { provider: 'gemini-live', enabled: true },
+  { provider: 'elevenlabs-scribe', enabled: true },
   { provider: 'gpt-4o-transcribe-diarize', enabled: true },
   { provider: 'runpod-whisper', enabled: true },
   { provider: 'runpod-whisper-large-v3', enabled: true },
@@ -51,6 +53,7 @@ const defaultConfigs: STTConfig[] = [
 const apiEndpoints: Record<STTProvider, string> = {
   'openai-realtime': '/api/stt/openai-realtime',
   'gemini-live': '/api/stt/gemini-live',
+  'elevenlabs-scribe': '/api/stt/elevenlabs-scribe',
   'gpt-4o-transcribe-diarize': '/api/stt/gpt-4o-transcribe-diarize',
   'runpod-whisper': '/api/stt/runpod-whisper',
   'runpod-whisper-large-v3': '/api/stt/runpod-whisper-large-v3',
@@ -58,6 +61,9 @@ const apiEndpoints: Record<STTProvider, string> = {
   'kotoba-whisper': '/api/stt/kotoba-whisper',
   'reazonspeech': '/api/stt/reazonspeech',
   'parakeet': '/api/stt/parakeet',
+  'kotoba-whisper-hf': '/api/stt/kotoba-whisper-hf',
+  'faster-whisper-large-v3': '/api/stt/faster-whisper-large-v3',
+  'whisper-large-v3-turbo': '/api/stt/whisper-large-v3-turbo',
 };
 
 function HomeContent() {
@@ -76,6 +82,7 @@ function HomeContent() {
   const [results, setResults] = useState<Record<STTProvider, TranscriptionResult[]>>({
     'openai-realtime': [],
     'gemini-live': [],
+    'elevenlabs-scribe': [],
     'gpt-4o-transcribe-diarize': [],
     'runpod-whisper': [],
     'runpod-whisper-large-v3': [],
@@ -99,6 +106,7 @@ function HomeContent() {
   const [providerErrors, setProviderErrors] = useState<Record<STTProvider, ProviderError | null>>({
     'openai-realtime': null,
     'gemini-live': null,
+    'elevenlabs-scribe': null,
     'gpt-4o-transcribe-diarize': null,
     'runpod-whisper': null,
     'runpod-whisper-large-v3': null,
@@ -113,6 +121,8 @@ function HomeContent() {
   const [healthLoading, setHealthLoading] = useState(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [geminiPartialText, setGeminiPartialText] = useState<string>(''); // Real-time transcription display
+  const [elevenLabsApiKey, setElevenLabsApiKey] = useState<string | null>(null);
+  const [elevenLabsPartialText, setElevenLabsPartialText] = useState<string>('');
   const [selectedProvider, setSelectedProvider] = useState<STTProvider | null>(null);
 
   // Set default selected provider
@@ -228,6 +238,64 @@ function HomeContent() {
     }, []),
   });
 
+  // Initialize ElevenLabs Scribe v2 WebSocket hook
+  const elevenLabsScribe = useElevenLabsScribe({
+    apiKey: elevenLabsApiKey || '',
+    onTranscription: useCallback(async (text: string, timestamp: number, latency: number) => {
+      const result: TranscriptionResult = {
+        provider: 'elevenlabs-scribe',
+        text,
+        timestamp,
+        latency,
+        isFinal: true,
+      };
+      setResults((prev) => ({
+        ...prev,
+        'elevenlabs-scribe': [...prev['elevenlabs-scribe'], result],
+      }));
+
+      // Save to Convex immediately
+      if (currentSessionIdRef.current) {
+        try {
+          await saveTranscription({
+            sessionId: currentSessionIdRef.current,
+            provider: 'elevenlabs-scribe',
+            text,
+            latency,
+            timestamp,
+            isFinal: true,
+          });
+        } catch (error) {
+          console.error('Failed to save ElevenLabs Scribe transcription to Convex:', error);
+        }
+      }
+    }, [saveTranscription]),
+    onPartialTranscription: useCallback((text: string) => {
+      setElevenLabsPartialText(text);
+    }, []),
+    onError: useCallback((error: string) => {
+      setProviderErrors((prev) => ({
+        ...prev,
+        'elevenlabs-scribe': {
+          provider: 'elevenlabs-scribe',
+          errorCode: 'WEBSOCKET_ERROR',
+          message: error,
+        },
+      }));
+    }, []),
+    onStatusChange: useCallback((status: 'connecting' | 'connected' | 'disconnected' | 'error') => {
+      if (status === 'connected') {
+        setActiveProviders((prev) => new Set([...prev, 'elevenlabs-scribe']));
+      } else if (status === 'disconnected' || status === 'error') {
+        setActiveProviders((prev) => {
+          const next = new Set(prev);
+          next.delete('elevenlabs-scribe');
+          return next;
+        });
+      }
+    }, []),
+  });
+
   useEffect(() => {
     async function checkHealth() {
       try {
@@ -259,6 +327,22 @@ function HomeContent() {
     fetchGeminiApiKey();
   }, []);
 
+  // Fetch ElevenLabs API key on mount
+  useEffect(() => {
+    async function fetchElevenLabsApiKey() {
+      try {
+        const response = await fetch('/api/stt/elevenlabs-scribe');
+        const data = await response.json();
+        if (data.apiKey) {
+          setElevenLabsApiKey(data.apiKey);
+        }
+      } catch (error) {
+        console.error('Failed to fetch ElevenLabs API key:', error);
+      }
+    }
+    fetchElevenLabsApiKey();
+  }, []);
+
   // Load session data when viewing a saved session
   useEffect(() => {
     if (loadedSession && viewingSessionId) {
@@ -269,6 +353,7 @@ function HomeContent() {
       const newResults: Record<STTProvider, TranscriptionResult[]> = {
         'openai-realtime': [],
         'gemini-live': [],
+        'elevenlabs-scribe': [],
         'gpt-4o-transcribe-diarize': [],
         'runpod-whisper': [],
         'runpod-whisper-large-v3': [],
@@ -439,9 +524,15 @@ function HomeContent() {
       await geminiLive.startStreaming();
     }
 
+    // Start ElevenLabs Scribe v2 API if enabled
+    const elevenLabsConfig = configs.find(c => c.provider === 'elevenlabs-scribe');
+    if (elevenLabsConfig?.enabled && elevenLabsApiKey) {
+      await elevenLabsScribe.startStreaming();
+    }
+
     // Start audio recorder for other providers
     startAudioRecorder();
-  }, [configs, realtimeAPI, geminiLive, geminiApiKey, startAudioRecorder, createSession]);
+  }, [configs, realtimeAPI, geminiLive, geminiApiKey, elevenLabsScribe, elevenLabsApiKey, startAudioRecorder, createSession]);
 
   const handleStopRecording = useCallback(async () => {
     recordingEndTimeRef.current = Date.now();
@@ -461,6 +552,14 @@ function HomeContent() {
       return next;
     });
 
+    // Stop ElevenLabs Scribe v2 API
+    elevenLabsScribe.stopStreaming();
+    setActiveProviders((prev) => {
+      const next = new Set(prev);
+      next.delete('elevenlabs-scribe');
+      return next;
+    });
+
     // Stop audio recorder
     stopAudioRecorder();
 
@@ -470,7 +569,7 @@ function HomeContent() {
         await endSession({ sessionId: currentSessionIdRef.current });
 
         // Save transcriptions for HTTP-based providers (WebSocket providers save immediately)
-        const websocketProviders = ['openai-realtime', 'gemini-live'];
+        const websocketProviders = ['openai-realtime', 'gemini-live', 'elevenlabs-scribe'];
         for (const [provider, transcriptions] of Object.entries(results)) {
           // Skip WebSocket providers as they save immediately on transcription
           if (websocketProviders.includes(provider)) {
@@ -492,7 +591,7 @@ function HomeContent() {
         console.error('Failed to save to Convex:', error);
       }
     }
-  }, [realtimeAPI, geminiLive, stopAudioRecorder, results, endSession, saveTranscription]);
+  }, [realtimeAPI, geminiLive, elevenLabsScribe, stopAudioRecorder, results, endSession, saveTranscription]);
 
   const handleToggleProvider = useCallback((provider: STTProvider, enabled: boolean) => {
     setConfigs((prev) =>
@@ -504,6 +603,7 @@ function HomeContent() {
     setResults({
       'openai-realtime': [],
       'gemini-live': [],
+      'elevenlabs-scribe': [],
       'gpt-4o-transcribe-diarize': [],
       'runpod-whisper': [],
       'runpod-whisper-large-v3': [],
@@ -854,6 +954,8 @@ function HomeContent() {
                   isActiveForProvider = realtimeAPI.isConnected;
                 } else if (config.provider === 'gemini-live') {
                   isActiveForProvider = geminiLive.isStreaming;
+                } else if (config.provider === 'elevenlabs-scribe') {
+                  isActiveForProvider = elevenLabsScribe.isStreaming;
                 }
 
                 return (
@@ -866,7 +968,11 @@ function HomeContent() {
                       onToggle={(enabled) => handleToggleProvider(config.provider, enabled)}
                       configured={healthLoading ? true : status?.configured ?? true}
                       error={providerErrors[config.provider]}
-                      partialText={config.provider === 'gemini-live' ? geminiPartialText : undefined}
+                      partialText={
+                        config.provider === 'gemini-live' ? geminiPartialText :
+                          config.provider === 'elevenlabs-scribe' ? elevenLabsPartialText :
+                            undefined
+                      }
                     />
                   </div>
                 );
@@ -968,6 +1074,12 @@ const costConfig: Record<STTProvider, { rate: number; unit: CostUnit; display: s
     unit: 'per_1k_chars',
     display: '$0.00025/1K chars',
     methodLabel: '$0.00025/1,000文字',
+  },
+  'elevenlabs-scribe': {
+    rate: 0.001, // ElevenLabs pricing: approximately $0.001/15 sec = $0.004/min
+    unit: 'per_sec',
+    display: '$0.001/sec (~$0.06/min)',
+    methodLabel: '$0.001/秒',
   },
   'gpt-4o-transcribe-diarize': {
     rate: 0.012,

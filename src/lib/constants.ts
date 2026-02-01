@@ -3,6 +3,7 @@ import { STTProvider } from './types';
 export const providerNames: Record<STTProvider, string> = {
     'openai-realtime': 'OpenAI Realtime API',
     'gemini-live': 'Gemini Live API',
+    'elevenlabs-scribe': 'ElevenLabs Scribe v2',
     'gpt-4o-transcribe-diarize': 'GPT-4o Transcribe Diarize',
     'runpod-whisper': 'Whisper Turbo',
     'runpod-whisper-large-v3': 'Whisper Large V3',
@@ -18,6 +19,7 @@ export const providerNames: Record<STTProvider, string> = {
 export const providerColors: Record<STTProvider, string> = {
     'openai-realtime': 'border-green-500',
     'gemini-live': 'border-purple-500',
+    'elevenlabs-scribe': 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950',
     'gpt-4o-transcribe-diarize': 'border-blue-500',
     'runpod-whisper': 'border-cyan-500 bg-cyan-50 dark:bg-cyan-950',
     'runpod-whisper-large-v3': 'border-teal-500 bg-teal-50 dark:bg-teal-950',
@@ -33,6 +35,7 @@ export const providerColors: Record<STTProvider, string> = {
 export const modelBadges: Record<STTProvider, string | null> = {
     'openai-realtime': null,
     'gemini-live': null,
+    'elevenlabs-scribe': 'Scribe v2',
     'gpt-4o-transcribe-diarize': null,
     'runpod-whisper': 'Turbo',
     'runpod-whisper-large-v3': 'Large V3',
