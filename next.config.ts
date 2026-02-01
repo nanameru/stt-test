@@ -37,11 +37,11 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requires unsafe-inline/eval
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:", // Added blob: for AudioWorklet
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",
-              "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://api.openai.com wss://api.openai.com https://generativelanguage.googleapis.com https://api.runpod.ai https://*.huggingface.co",
+              "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://api.openai.com wss://api.openai.com https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://api.runpod.ai https://*.huggingface.co https://api.elevenlabs.io wss://api.elevenlabs.io",
               "media-src 'self' blob:",
               "worker-src 'self' blob:",
               "frame-ancestors 'none'",

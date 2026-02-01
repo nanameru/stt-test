@@ -132,27 +132,42 @@ export function useFileAudioSource({
         }
 
         try {
-            // Create AudioContext
-            const audioContext = new AudioContext();
-            audioContextRef.current = audioContext;
+            // Clean up previous audio processing (but keep the source node if already connected)
+            if (timeUpdateIntervalRef.current) {
+                clearInterval(timeUpdateIntervalRef.current);
+                timeUpdateIntervalRef.current = null;
+            }
 
-            // Create MediaElementSource
-            const sourceNode = audioContext.createMediaElementSource(element);
-            sourceNodeRef.current = sourceNode;
+            if (processorRef.current) {
+                processorRef.current.disconnect();
+                processorRef.current = null;
+            }
+
+            // Reuse existing AudioContext if available, or create a new one
+            let audioContext = audioContextRef.current;
+            if (!audioContext || audioContext.state === 'closed') {
+                audioContext = new AudioContext();
+                audioContextRef.current = audioContext;
+            }
+
+            // Reuse existing source node if available (can't create multiple sources for same element)
+            let sourceNode = sourceNodeRef.current;
+            if (!sourceNode) {
+                sourceNode = audioContext.createMediaElementSource(element);
+                sourceNodeRef.current = sourceNode;
+            }
 
             // Create ScriptProcessor for audio chunk processing
             const processor = audioContext.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
-                if (!isPlaying) return;
-
                 const inputData = e.inputBuffer.getChannelData(0);
 
                 // Resample to target sample rate
                 const resampledData = resample(
                     inputData,
-                    audioContext.sampleRate,
+                    audioContext!.sampleRate,
                     targetSampleRate
                 );
 
@@ -182,7 +197,7 @@ export function useFileAudioSource({
 
             // Start playback
             element.muted = false; // Unmute for Web Audio API to work
-            // Note: Audio won't be heard since we're not connecting to destination speakers
+            // Note: Audio won't be heard since we're processing through ScriptProcessor
             element.play();
             setIsPlaying(true);
 
@@ -190,7 +205,7 @@ export function useFileAudioSource({
             console.error('Failed to start playback:', error);
             onError(error instanceof Error ? error.message : 'Failed to start playback');
         }
-    }, [isPlaying, resample, floatTo16BitPCM, onAudioChunk, onPlaybackEnd, onError, targetSampleRate]);
+    }, [resample, floatTo16BitPCM, onAudioChunk, onPlaybackEnd, onError, targetSampleRate]);
 
     // Stop playback
     const stopPlayback = useCallback(() => {

@@ -361,14 +361,19 @@ function HomeContent() {
     fetchGeminiApiKey();
   }, []);
 
-  // Fetch ElevenLabs API key on mount
+  // Fetch ElevenLabs token or API key on mount
   useEffect(() => {
     async function fetchElevenLabsApiKey() {
       try {
         const response = await fetch('/api/stt/elevenlabs-scribe');
         const data = await response.json();
-        if (data.apiKey) {
+        // Support both token and apiKey responses
+        if (data.token) {
+          setElevenLabsApiKey(data.token);
+          console.log('ElevenLabs: Using single-use token');
+        } else if (data.apiKey) {
           setElevenLabsApiKey(data.apiKey);
+          console.log('ElevenLabs: Using API key (fallback)');
         }
       } catch (error) {
         console.error('Failed to fetch ElevenLabs API key:', error);

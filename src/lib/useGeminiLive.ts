@@ -318,6 +318,61 @@ You are a transcription machine with speaker identification, not a conversationa
         };
     }, [disconnect]);
 
+    // Send external audio chunk (for file input mode)
+    const sendAudioChunk = useCallback((pcmData: ArrayBuffer) => {
+        if (wsRef.current?.readyState !== WebSocket.OPEN) {
+            return;
+        }
+
+        const base64Audio = btoa(
+            String.fromCharCode(...new Uint8Array(pcmData))
+        );
+
+        // Send audio data to Gemini
+        const audioMessage = {
+            realtimeInput: {
+                mediaChunks: [{
+                    mimeType: 'audio/pcm;rate=16000',
+                    data: base64Audio
+                }]
+            }
+        };
+
+        wsRef.current.send(JSON.stringify(audioMessage));
+        chunkCountRef.current++;
+    }, []);
+
+    // Start streaming without microphone (for file input mode)
+    const startStreamingWithoutMic = useCallback(async () => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            // Create a promise that will be resolved when setupComplete is received
+            const setupCompletePromise = new Promise<void>((resolve) => {
+                setupCompleteResolverRef.current = resolve;
+                // Timeout after 5 seconds if setupComplete not received
+                setTimeout(() => {
+                    if (setupCompleteResolverRef.current) {
+                        setupCompleteResolverRef.current();
+                        setupCompleteResolverRef.current = null;
+                    }
+                }, 5000);
+            });
+
+            await connect();
+            // Wait for setupComplete instead of fixed timeout
+            await setupCompletePromise;
+        }
+
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            onError('WebSocket not connected');
+            return;
+        }
+
+        startTimeRef.current = Date.now();
+        chunkCountRef.current = 0;
+        isStreamingRef.current = true;
+        setIsStreaming(true);
+    }, [connect, onError]);
+
     return {
         isConnected,
         isStreaming,
@@ -325,5 +380,7 @@ You are a transcription machine with speaker identification, not a conversationa
         startStreaming,
         stopStreaming,
         disconnect,
+        sendAudioChunk,
+        startStreamingWithoutMic,
     };
 }

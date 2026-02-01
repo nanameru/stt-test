@@ -38,6 +38,7 @@ export function useElevenLabsScribe({
     const startTimeRef = useRef<number>(0);
     const isStreamingRef = useRef<boolean>(false);
     const currentPartialTextRef = useRef<string>('');
+    const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Convert Float32 audio samples to 16-bit PCM
     const floatTo16BitPCM = useCallback((float32Array: Float32Array): ArrayBuffer => {
@@ -52,48 +53,79 @@ export function useElevenLabsScribe({
 
     // Connect to ElevenLabs Scribe v2 Realtime API
     const connect = useCallback(async () => {
+        console.log('[ElevenLabs DEBUG] connect() called');
+
         if (wsRef.current?.readyState === WebSocket.OPEN) {
+            console.log('[ElevenLabs DEBUG] WebSocket already open, returning');
             return;
         }
 
         if (!apiKey) {
+            console.log('[ElevenLabs DEBUG] No API key, returning error');
             onError('ElevenLabs API key is not configured');
             onStatusChange('error');
             return;
         }
 
+        console.log('[ElevenLabs DEBUG] API key found, starting connection...');
         onStatusChange('connecting');
 
         try {
             // ElevenLabs Scribe v2 Realtime WebSocket endpoint
-            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=ja`;
+            // Based on deep research: 
+            // - Endpoint is /v1/speech-to-text (no /realtime)
+            // - Use 'token' parameter (not 'single_use_token') for auth
+            // - Add inactivity_timeout=180 to extend connection lifetime
+            const isToken = apiKey.startsWith('sutkn_');
+            const authParam = isToken
+                ? `token=${encodeURIComponent(apiKey)}`
+                : `xi-api-key=${encodeURIComponent(apiKey)}`;
+
+            // Corrected URL based on latest research
+            // Endpoint is: /v1/speech-to-text/realtime (with /realtime!)
+            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=ja&audio_format=pcm_16000&inactivity_timeout=180&${authParam}`;
+
+            console.log('[ElevenLabs DEBUG] Connecting to:', wsUrl.replace(apiKey, 'API_KEY_HIDDEN'));
+            console.log('[ElevenLabs DEBUG] Using auth type:', isToken ? 'token' : 'api_key');
 
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
             ws.onopen = () => {
-                console.log('ElevenLabs Scribe WebSocket connected');
-
-                // Send authentication and configuration
-                const authMessage = {
-                    type: 'authenticate',
-                    api_key: apiKey,
-                };
-                ws.send(JSON.stringify(authMessage));
-
-                // Send configuration
-                const configMessage = {
-                    type: 'configure',
-                    audio_format: 'pcm_16000',
-                    sample_rate: 16000,
-                    encoding: 'pcm_s16le',
-                    language_code: 'ja',
-                    endpointing: 300,
-                };
-                ws.send(JSON.stringify(configMessage));
-
+                console.log('[ElevenLabs DEBUG] WebSocket connected successfully');
                 setIsConnected(true);
                 onStatusChange('connected');
+
+                // Create silence buffer once for reuse
+                const silenceBuffer = new ArrayBuffer(3200); // 100ms of silence at 16kHz
+                const silenceView = new DataView(silenceBuffer);
+                for (let i = 0; i < 1600; i++) {
+                    silenceView.setInt16(i * 2, 0, true);
+                }
+
+                // Helper function to send silence
+                const sendSilence = () => {
+                    if (ws.readyState === WebSocket.OPEN) {
+                        const base64Audio = btoa(
+                            String.fromCharCode(...new Uint8Array(silenceBuffer))
+                        );
+                        ws.send(JSON.stringify({
+                            audio_base_64: base64Audio
+                        }));
+                        console.log('[ElevenLabs DEBUG] Sent keep-alive silence chunk');
+                    }
+                };
+
+                // Send initial silence immediately
+                sendSilence();
+
+                // Start keep-alive interval (every 15 seconds)
+                // This prevents the connection from timing out
+                if (keepAliveIntervalRef.current) {
+                    clearInterval(keepAliveIntervalRef.current);
+                }
+                keepAliveIntervalRef.current = setInterval(sendSilence, 15000);
+                console.log('[ElevenLabs DEBUG] Started keep-alive interval (15s)');
             };
 
             ws.onmessage = async (event) => {
@@ -162,13 +194,24 @@ export function useElevenLabsScribe({
 
     // Start streaming audio
     const startStreaming = useCallback(async () => {
+        console.log('[ElevenLabs DEBUG] startStreaming called');
+        console.log('[ElevenLabs DEBUG] apiKey exists:', !!apiKey);
+        console.log('[ElevenLabs DEBUG] wsRef.current exists:', !!wsRef.current);
+        console.log('[ElevenLabs DEBUG] wsRef.current.readyState:', wsRef.current?.readyState, '(OPEN=1, CLOSED=3)');
+
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            console.log('[ElevenLabs DEBUG] WebSocket not open, calling connect()...');
             await connect();
+            console.log('[ElevenLabs DEBUG] connect() returned, waiting 1 second...');
             // Wait for connection
             await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('[ElevenLabs DEBUG] 1 second wait completed');
+            console.log('[ElevenLabs DEBUG] wsRef.current exists after wait:', !!wsRef.current);
+            console.log('[ElevenLabs DEBUG] wsRef.current.readyState after wait:', wsRef.current?.readyState);
         }
 
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            console.log('[ElevenLabs DEBUG] WebSocket STILL not connected after wait, returning error');
             onError('WebSocket not connected');
             return;
         }
@@ -203,10 +246,9 @@ export function useElevenLabsScribe({
                         String.fromCharCode(...new Uint8Array(pcmData))
                     );
 
-                    // Send audio data to ElevenLabs
+                    // Send audio data to ElevenLabs with correct format
                     const audioMessage = {
-                        type: 'audio',
-                        audio: base64Audio,
+                        audio_base_64: base64Audio,
                     };
 
                     wsRef.current.send(JSON.stringify(audioMessage));
@@ -265,9 +307,9 @@ export function useElevenLabsScribe({
                     String.fromCharCode(...new Uint8Array(pcmData))
                 );
 
+                // ElevenLabs expects audio_base_64 key
                 const audioMessage = {
-                    type: 'audio',
-                    audio: base64Audio,
+                    audio_base_64: base64Audio,
                 };
 
                 wsRef.current.send(JSON.stringify(audioMessage));
@@ -281,13 +323,34 @@ export function useElevenLabsScribe({
     const startStreamingWithoutMic = useCallback(async () => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             await connect();
-            // Wait for connection
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Wait a bit for connection to establish
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             onError('WebSocket not connected');
             return;
+        }
+
+        // Send initial silence to keep connection alive
+        // ElevenLabs closes connections after ~20s of inactivity
+        const silenceBuffer = new ArrayBuffer(1600); // 50ms of silence at 16kHz
+        const silenceView = new DataView(silenceBuffer);
+        for (let i = 0; i < 800; i++) {
+            silenceView.setInt16(i * 2, 0, true);
+        }
+
+        // Send initial silence chunk
+        try {
+            const base64Audio = btoa(
+                String.fromCharCode(...new Uint8Array(silenceBuffer))
+            );
+            wsRef.current.send(JSON.stringify({
+                audio_base_64: base64Audio
+            }));
+            console.log('Sent initial silence chunk to keep connection alive');
+        } catch (e) {
+            console.error('Failed to send initial silence:', e);
         }
 
         startTimeRef.current = Date.now();
@@ -297,6 +360,13 @@ export function useElevenLabsScribe({
 
     // Disconnect from ElevenLabs
     const disconnect = useCallback(() => {
+        // Clear keep-alive interval
+        if (keepAliveIntervalRef.current) {
+            clearInterval(keepAliveIntervalRef.current);
+            keepAliveIntervalRef.current = null;
+            console.log('[ElevenLabs DEBUG] Cleared keep-alive interval');
+        }
+
         stopStreaming();
 
         if (wsRef.current) {
