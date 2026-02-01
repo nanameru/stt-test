@@ -1,0 +1,20 @@
+# Environment variables (API keys)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Results (optional - remove this line if you want to include results)
+results/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

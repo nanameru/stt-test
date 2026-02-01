@@ -84,10 +84,10 @@ export function useElevenLabsScribe({
                 ? `token=${encodeURIComponent(apiKey)}`
                 : `xi-api-key=${encodeURIComponent(apiKey)}`;
 
-            // Corrected URL based on latest research
-            // Endpoint is: /v1/speech-to-text/realtime (with /realtime!)
-            // Added commit_strategy=vad for automatic voice activity detection
-            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=ja&audio_format=pcm_16000&commit_strategy=vad&inactivity_timeout=180&${authParam}`;
+            // URL based on reference Python SDK implementation
+            // Endpoint is: /v1/speech-to-text/realtime
+            // Using options matching realtime_mic.py
+            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=jpn&audio_format=pcm_16000&commit_strategy=vad&include_timestamps=true&inactivity_timeout=180&${authParam}`;
 
             console.log('[ElevenLabs DEBUG] Connecting to:', wsUrl.replace(apiKey, 'API_KEY_HIDDEN'));
             console.log('[ElevenLabs DEBUG] Using auth type:', isToken ? 'token' : 'api_key');
@@ -113,10 +113,9 @@ export function useElevenLabsScribe({
                         const base64Audio = btoa(
                             String.fromCharCode(...new Uint8Array(silenceBuffer))
                         );
-                        // Must include message_type for Scribe v2 API
+                        // Send audio data in simple format (matching Python SDK)
                         ws.send(JSON.stringify({
-                            message_type: 'input_audio_chunk',
-                            audio: base64Audio
+                            audio_base_64: base64Audio
                         }));
                         console.log('[ElevenLabs DEBUG] Sent keep-alive silence chunk');
                     }
@@ -280,11 +279,9 @@ export function useElevenLabsScribe({
                         String.fromCharCode(...new Uint8Array(pcmData))
                     );
 
-                    // Send audio data to ElevenLabs with correct format
-                    // Scribe v2 API requires message_type: 'input_audio_chunk'
+                    // Send audio data in simple format (matching Python SDK)
                     const audioMessage = {
-                        message_type: 'input_audio_chunk',
-                        audio: base64Audio,
+                        audio_base_64: base64Audio,
                     };
 
                     wsRef.current.send(JSON.stringify(audioMessage));
@@ -343,10 +340,9 @@ export function useElevenLabsScribe({
                     String.fromCharCode(...new Uint8Array(pcmData))
                 );
 
-                // Scribe v2 API requires message_type: 'input_audio_chunk'
+                // Send audio data in simple format (matching Python SDK)
                 const audioMessage = {
-                    message_type: 'input_audio_chunk',
-                    audio: base64Audio,
+                    audio_base_64: base64Audio,
                 };
 
                 wsRef.current.send(JSON.stringify(audioMessage));
@@ -383,8 +379,7 @@ export function useElevenLabsScribe({
                 String.fromCharCode(...new Uint8Array(silenceBuffer))
             );
             wsRef.current.send(JSON.stringify({
-                message_type: 'input_audio_chunk',
-                audio: base64Audio
+                audio_base_64: base64Audio
             }));
             console.log('Sent initial silence chunk to keep connection alive');
         } catch (e) {
