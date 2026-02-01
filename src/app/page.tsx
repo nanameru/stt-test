@@ -9,10 +9,12 @@ import { useAudioRecorder } from '@/lib/useAudioRecorder';
 import { useRealtimeAPI } from '@/lib/useRealtimeAPI';
 import { useGeminiLive } from '@/lib/useGeminiLive';
 import { useElevenLabsScribe } from '@/lib/useElevenLabsScribe';
+import { useFileAudioSource } from '@/lib/useFileAudioSource';
 import { TranscriptionPanel } from '@/components/TranscriptionPanel';
 import { Sidebar } from '@/components/Sidebar';
 import { RecordingControls } from '@/components/RecordingControls';
 import { EvaluationTable } from '@/components/EvaluationTable';
+import { AudioSourceSelector } from '@/components/AudioSourceSelector';
 import { TranscriptionResult, STTProvider, STTConfig, EvaluationResult } from '@/lib/types';
 import { providerNames } from '@/lib/constants';
 import { evaluateTranscription, getGrade, GroundTruth } from '@/lib/evaluation';
@@ -123,6 +125,7 @@ function HomeContent() {
   const [geminiPartialText, setGeminiPartialText] = useState<string>(''); // Real-time transcription display
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState<string | null>(null);
   const [elevenLabsPartialText, setElevenLabsPartialText] = useState<string>('');
+  const [audioSource, setAudioSource] = useState<'microphone' | 'file'>('microphone');
   const [selectedProvider, setSelectedProvider] = useState<STTProvider | null>(null);
 
   // Set default selected provider
@@ -293,6 +296,37 @@ function HomeContent() {
           return next;
         });
       }
+    }, []),
+  });
+
+  // File audio source hook for file input mode
+  const fileAudioSource = useFileAudioSource({
+    onAudioChunk: useCallback((pcmData: ArrayBuffer) => {
+      // Send audio to ElevenLabs Scribe when in file mode
+      if (audioSource === 'file') {
+        const elevenLabsConfig = configs.find(c => c.provider === 'elevenlabs-scribe');
+        if (elevenLabsConfig?.enabled) {
+          elevenLabsScribe.sendAudioChunk(pcmData);
+        }
+      }
+    }, [audioSource, configs, elevenLabsScribe]),
+    onPlaybackEnd: useCallback(() => {
+      console.log('File playback ended');
+      // Stop streaming when playback ends
+      if (audioSource === 'file') {
+        elevenLabsScribe.stopStreaming();
+      }
+    }, [audioSource, elevenLabsScribe]),
+    onError: useCallback((error: string) => {
+      console.error('File audio source error:', error);
+      setProviderErrors((prev) => ({
+        ...prev,
+        'elevenlabs-scribe': {
+          provider: 'elevenlabs-scribe',
+          errorCode: 'FILE_ERROR',
+          message: error,
+        },
+      }));
     }, []),
   });
 
@@ -934,14 +968,49 @@ function HomeContent() {
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-5xl mx-auto space-y-6 pb-20">
 
-            {/* Recording Controls */}
-            <RecordingControls
-              isRecording={isRecording}
-              onStartRecording={handleStartRecording}
-              onStopRecording={handleStopRecording}
-              onClearResults={handleClearResults}
-              error={error}
+            {/* Audio Source Selector */}
+            <AudioSourceSelector
+              audioSource={audioSource}
+              onAudioSourceChange={setAudioSource}
+              onFileSelect={async (file) => {
+                try {
+                  await fileAudioSource.loadFile(file);
+                } catch (error) {
+                  console.error('Failed to load file:', error);
+                }
+              }}
+              isPlaying={fileAudioSource.isPlaying}
+              isLoaded={fileAudioSource.isLoaded}
+              duration={fileAudioSource.duration}
+              currentTime={fileAudioSource.currentTime}
+              fileName={fileAudioSource.fileName}
+              onStartPlayback={async () => {
+                // Start ElevenLabs streaming without microphone
+                const elevenLabsConfig = configs.find(c => c.provider === 'elevenlabs-scribe');
+                if (elevenLabsConfig?.enabled && elevenLabsApiKey) {
+                  await elevenLabsScribe.startStreamingWithoutMic();
+                }
+                // Start file playback
+                fileAudioSource.startPlayback();
+              }}
+              onStopPlayback={() => {
+                fileAudioSource.stopPlayback();
+                elevenLabsScribe.stopStreaming();
+              }}
+              onSeek={fileAudioSource.seekTo}
+              disabled={isRecording || fileAudioSource.isPlaying}
             />
+
+            {/* Recording Controls (Microphone mode only) */}
+            {audioSource === 'microphone' && (
+              <RecordingControls
+                isRecording={isRecording}
+                onStartRecording={handleStartRecording}
+                onStopRecording={handleStopRecording}
+                onClearResults={handleClearResults}
+                error={error}
+              />
+            )}
 
             {/* Grid View of Enabled Providers */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

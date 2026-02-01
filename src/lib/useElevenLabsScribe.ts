@@ -257,6 +257,44 @@ export function useElevenLabsScribe({
         currentPartialTextRef.current = '';
     }, []);
 
+    // Send external audio chunk (for file input mode)
+    const sendAudioChunk = useCallback((pcmData: ArrayBuffer) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+            try {
+                const base64Audio = btoa(
+                    String.fromCharCode(...new Uint8Array(pcmData))
+                );
+
+                const audioMessage = {
+                    type: 'audio',
+                    audio: base64Audio,
+                };
+
+                wsRef.current.send(JSON.stringify(audioMessage));
+            } catch (e) {
+                console.error('Error sending audio chunk:', e);
+            }
+        }
+    }, []);
+
+    // Start streaming without microphone (for file input mode)
+    const startStreamingWithoutMic = useCallback(async () => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            await connect();
+            // Wait for connection
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+            onError('WebSocket not connected');
+            return;
+        }
+
+        startTimeRef.current = Date.now();
+        isStreamingRef.current = true;
+        setIsStreaming(true);
+    }, [connect, onError]);
+
     // Disconnect from ElevenLabs
     const disconnect = useCallback(() => {
         stopStreaming();
@@ -281,7 +319,9 @@ export function useElevenLabsScribe({
         isStreaming,
         connect,
         startStreaming,
+        startStreamingWithoutMic,
         stopStreaming,
+        sendAudioChunk,
         disconnect,
     };
 }
