@@ -116,7 +116,7 @@ export function useElevenLabsScribe({
                         // Must include message_type for Scribe v2 API
                         ws.send(JSON.stringify({
                             message_type: 'input_audio_chunk',
-                            audio_base_64: base64Audio
+                            audio: base64Audio
                         }));
                         console.log('[ElevenLabs DEBUG] Sent keep-alive silence chunk');
                     }
@@ -284,7 +284,7 @@ export function useElevenLabsScribe({
                     // Scribe v2 API requires message_type: 'input_audio_chunk'
                     const audioMessage = {
                         message_type: 'input_audio_chunk',
-                        audio_base_64: base64Audio,
+                        audio: base64Audio,
                     };
 
                     wsRef.current.send(JSON.stringify(audioMessage));
@@ -346,7 +346,7 @@ export function useElevenLabsScribe({
                 // Scribe v2 API requires message_type: 'input_audio_chunk'
                 const audioMessage = {
                     message_type: 'input_audio_chunk',
-                    audio_base_64: base64Audio,
+                    audio: base64Audio,
                 };
 
                 wsRef.current.send(JSON.stringify(audioMessage));
@@ -384,7 +384,7 @@ export function useElevenLabsScribe({
             );
             wsRef.current.send(JSON.stringify({
                 message_type: 'input_audio_chunk',
-                audio_base_64: base64Audio
+                audio: base64Audio
             }));
             console.log('Sent initial silence chunk to keep connection alive');
         } catch (e) {
