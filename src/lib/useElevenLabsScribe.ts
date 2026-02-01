@@ -11,11 +11,14 @@ interface ElevenLabsScribeOptions {
 }
 
 interface ScribeMessage {
+    message_type?: string;
     type?: string;
     text?: string;
     speaker_id?: string;
     start?: number;
     end?: number;
+    session_id?: string;
+    config?: Record<string, unknown>;
     error?: {
         code?: string;
         message?: string;
@@ -83,7 +86,8 @@ export function useElevenLabsScribe({
 
             // Corrected URL based on latest research
             // Endpoint is: /v1/speech-to-text/realtime (with /realtime!)
-            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=ja&audio_format=pcm_16000&inactivity_timeout=180&${authParam}`;
+            // Added commit_strategy=vad for automatic voice activity detection
+            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=ja&audio_format=pcm_16000&commit_strategy=vad&inactivity_timeout=180&${authParam}`;
 
             console.log('[ElevenLabs DEBUG] Connecting to:', wsUrl.replace(apiKey, 'API_KEY_HIDDEN'));
             console.log('[ElevenLabs DEBUG] Using auth type:', isToken ? 'token' : 'api_key');
@@ -139,9 +143,16 @@ export function useElevenLabsScribe({
 
                     const data: ScribeMessage = JSON.parse(messageText);
 
-                    // Handle different message types
-                    if (data.type === 'transcript') {
-                        // Partial transcript
+                    // Determine message type (could be 'message_type' or 'type')
+                    const msgType = data.message_type || data.type;
+                    console.log('[ElevenLabs DEBUG] Received message:', msgType, data);
+
+                    // Handle different message types based on Scribe v2 API
+                    if (msgType === 'session_started') {
+                        // Session started confirmation
+                        console.log('[ElevenLabs DEBUG] Session started:', data.session_id);
+                    } else if (msgType === 'partial_transcript') {
+                        // Partial transcript - interim results
                         const text = data.text || '';
                         if (text) {
                             currentPartialTextRef.current = text;
@@ -149,8 +160,8 @@ export function useElevenLabsScribe({
                                 onPartialTranscription(text);
                             }
                         }
-                    } else if (data.type === 'transcript_final' || data.type === 'final') {
-                        // Final transcript
+                    } else if (msgType === 'committed_transcript' || msgType === 'committed_transcript_with_timestamps') {
+                        // Committed transcript - final results
                         const text = data.text || currentPartialTextRef.current;
                         if (text) {
                             const latency = Date.now() - startTimeRef.current;
@@ -163,9 +174,29 @@ export function useElevenLabsScribe({
                                 onPartialTranscription('');
                             }
                         }
-                    } else if (data.type === 'error') {
-                        console.error('ElevenLabs Scribe error:', data.error);
-                        onError(data.error?.message || 'Unknown error from ElevenLabs');
+                    } else if (msgType === 'transcript' || msgType === 'transcript_final' || msgType === 'final') {
+                        // Legacy/fallback message types
+                        const text = data.text || '';
+                        if (msgType === 'transcript') {
+                            currentPartialTextRef.current = text;
+                            if (onPartialTranscription && text) {
+                                onPartialTranscription(text);
+                            }
+                        } else {
+                            const finalText = text || currentPartialTextRef.current;
+                            if (finalText) {
+                                const latency = Date.now() - startTimeRef.current;
+                                onTranscription(finalText.trim(), Date.now(), latency);
+                                currentPartialTextRef.current = '';
+                                startTimeRef.current = Date.now();
+                                if (onPartialTranscription) {
+                                    onPartialTranscription('');
+                                }
+                            }
+                        }
+                    } else if (msgType && msgType.includes('error')) {
+                        console.error('[ElevenLabs DEBUG] Scribe error:', msgType, data);
+                        onError(data.error?.message || data.text || 'Unknown error from ElevenLabs');
                     }
                 } catch (e) {
                     console.error('Error parsing ElevenLabs message:', e);
@@ -235,7 +266,8 @@ export function useElevenLabsScribe({
             const source = audioContext.createMediaStreamSource(stream);
 
             // Use ScriptProcessorNode for audio processing
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
+            // Buffer size 2048 = 128ms at 16kHz (recommended: 100ms-1s)
+            const processor = audioContext.createScriptProcessor(2048, 1, 1);
             processorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
