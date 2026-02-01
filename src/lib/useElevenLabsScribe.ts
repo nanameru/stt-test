@@ -74,23 +74,48 @@ export function useElevenLabsScribe({
         onStatusChange('connecting');
 
         try {
-            // ElevenLabs Scribe v2 Realtime WebSocket endpoint
-            // Based on deep research: 
-            // - Endpoint is /v1/speech-to-text (no /realtime)
-            // - Use 'token' parameter (not 'single_use_token') for auth
-            // - Add inactivity_timeout=180 to extend connection lifetime
-            const isToken = apiKey.startsWith('sutkn_');
-            const authParam = isToken
-                ? `token=${encodeURIComponent(apiKey)}`
-                : `xi-api-key=${encodeURIComponent(apiKey)}`;
+            // First, get a single-use token from our server
+            // This is required because browsers cannot send custom headers on WebSocket connections
+            // and ElevenLabs requires the API key to be in the xi-api-key header
+            let token: string;
+
+            if (apiKey.startsWith('sutkn_')) {
+                // Already have a token
+                token = apiKey;
+                console.log('[ElevenLabs DEBUG] Using existing token');
+            } else {
+                // Need to get a single-use token from our API
+                console.log('[ElevenLabs DEBUG] Fetching single-use token from server...');
+                try {
+                    const tokenResponse = await fetch('/api/stt/elevenlabs-scribe', {
+                        method: 'GET',
+                    });
+
+                    if (!tokenResponse.ok) {
+                        const errorData = await tokenResponse.json().catch(() => ({}));
+                        throw new Error(errorData.error || `Token API returned ${tokenResponse.status}`);
+                    }
+
+                    const tokenData = await tokenResponse.json();
+                    // API endpoint returns either token or apiKey
+                    token = tokenData.token || tokenData.apiKey;
+                    if (!token) {
+                        throw new Error('No token or apiKey in response');
+                    }
+                    console.log('[ElevenLabs DEBUG] Got auth from server:', tokenData.tokenType);
+                } catch (tokenError) {
+                    console.error('[ElevenLabs DEBUG] Failed to get token:', tokenError);
+                    onError(`Failed to get authentication token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
+                    onStatusChange('error');
+                    return;
+                }
+            }
 
             // URL based on reference Python SDK implementation
-            // Endpoint is: /v1/speech-to-text/realtime
-            // Using options matching realtime_mic.py
-            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=jpn&audio_format=pcm_16000&commit_strategy=vad&include_timestamps=true&inactivity_timeout=180&${authParam}`;
+            // Use token for authentication (not xi-api-key in URL)
+            const wsUrl = `wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=scribe_v2_realtime&language_code=jpn&audio_format=pcm_16000&commit_strategy=vad&include_timestamps=true&inactivity_timeout=180&token=${encodeURIComponent(token)}`;
 
-            console.log('[ElevenLabs DEBUG] Connecting to:', wsUrl.replace(apiKey, 'API_KEY_HIDDEN'));
-            console.log('[ElevenLabs DEBUG] Using auth type:', isToken ? 'token' : 'api_key');
+            console.log('[ElevenLabs DEBUG] Connecting to:', wsUrl.replace(token, 'TOKEN_HIDDEN'));
 
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
