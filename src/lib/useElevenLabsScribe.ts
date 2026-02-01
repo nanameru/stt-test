@@ -138,9 +138,12 @@ export function useElevenLabsScribe({
                         const base64Audio = btoa(
                             String.fromCharCode(...new Uint8Array(silenceBuffer))
                         );
-                        // Send audio data in simple format (matching Python SDK)
+                        // Correct format based on ElevenLabs Python SDK source
                         ws.send(JSON.stringify({
-                            audio_base_64: base64Audio
+                            message_type: 'input_audio_chunk',
+                            audio_base_64: base64Audio,
+                            commit: false,
+                            sample_rate: 16000
                         }));
                         console.log('[ElevenLabs DEBUG] Sent keep-alive silence chunk');
                     }
@@ -304,9 +307,12 @@ export function useElevenLabsScribe({
                         String.fromCharCode(...new Uint8Array(pcmData))
                     );
 
-                    // Send audio data in simple format (matching Python SDK)
+                    // Correct format based on ElevenLabs Python SDK source
                     const audioMessage = {
+                        message_type: 'input_audio_chunk',
                         audio_base_64: base64Audio,
+                        commit: false,
+                        sample_rate: 16000
                     };
 
                     wsRef.current.send(JSON.stringify(audioMessage));
@@ -365,9 +371,12 @@ export function useElevenLabsScribe({
                     String.fromCharCode(...new Uint8Array(pcmData))
                 );
 
-                // Send audio data in simple format (matching Python SDK)
+                // Correct format based on ElevenLabs Python SDK source
                 const audioMessage = {
+                    message_type: 'input_audio_chunk',
                     audio_base_64: base64Audio,
+                    commit: false,
+                    sample_rate: 16000
                 };
 
                 wsRef.current.send(JSON.stringify(audioMessage));
@@ -403,8 +412,12 @@ export function useElevenLabsScribe({
             const base64Audio = btoa(
                 String.fromCharCode(...new Uint8Array(silenceBuffer))
             );
+            // Correct format based on ElevenLabs Python SDK source
             wsRef.current.send(JSON.stringify({
-                audio_base_64: base64Audio
+                message_type: 'input_audio_chunk',
+                audio_base_64: base64Audio,
+                commit: false,
+                sample_rate: 16000
             }));
             console.log('Sent initial silence chunk to keep connection alive');
         } catch (e) {
