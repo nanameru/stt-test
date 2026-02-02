@@ -45,8 +45,8 @@ export async function GET() {
     },
     {
       provider: 'kotoba-whisper',
-      configured: !!(process.env.RUNPOD_API_KEY && process.env.RUNPOD_KOTOBA_WHISPER_ENDPOINT_ID),
-      envVar: 'RUNPOD_API_KEY, RUNPOD_KOTOBA_WHISPER_ENDPOINT_ID',
+      configured: !!(process.env.RUNPOD_API_KEY && process.env.RUNPOD_KOTOBA_ENDPOINT_ID),
+      envVar: 'RUNPOD_API_KEY, RUNPOD_KOTOBA_ENDPOINT_ID',
     },
     {
       provider: 'reazonspeech',
