@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const apiKey = process.env.GOOGLE_API_KEY;
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
         if (!apiKey) {
             return NextResponse.json(
-                { error: 'Google API key not configured' },
+                { error: 'Google API key not configured (NEXT_PUBLIC_GOOGLE_AI_API_KEY or GEMINI_API_KEY)' },
                 { status: 500 }
             );
         }
