@@ -82,10 +82,11 @@ export function useElevenLabsScribe({
             if (apiKey.startsWith('sutkn_')) {
                 // Already have a token
                 token = apiKey;
-                console.log('[ElevenLabs DEBUG] Using existing token');
-            } else {
-                // Need to get a single-use token from our API
-                console.log('[ElevenLabs DEBUG] Fetching single-use token from server...');
+                console.log('[ElevenLabs DEBUG] Using existing single-use token');
+            } else if (apiKey.startsWith('sk_')) {
+                // We have an API key, need to get a single-use token from our API
+                // API keys cannot be used directly with WebSocket token parameter
+                console.log('[ElevenLabs DEBUG] Have API key, fetching single-use token from server...');
                 try {
                     const tokenResponse = await fetch('/api/stt/elevenlabs-scribe', {
                         method: 'GET',
@@ -97,18 +98,26 @@ export function useElevenLabsScribe({
                     }
 
                     const tokenData = await tokenResponse.json();
-                    // API endpoint returns either token or apiKey
-                    token = tokenData.token || tokenData.apiKey;
-                    if (!token) {
-                        throw new Error('No token or apiKey in response');
+
+                    // Must have a single-use token, not API key fallback
+                    if (!tokenData.token) {
+                        throw new Error('Server did not return a single-use token');
                     }
-                    console.log('[ElevenLabs DEBUG] Got auth from server:', tokenData.tokenType);
+
+                    token = tokenData.token;
+                    console.log('[ElevenLabs DEBUG] Got single-use token from server');
                 } catch (tokenError) {
                     console.error('[ElevenLabs DEBUG] Failed to get token:', tokenError);
                     onError(`Failed to get authentication token: ${tokenError instanceof Error ? tokenError.message : 'Unknown error'}`);
                     onStatusChange('error');
                     return;
                 }
+            } else {
+                // Unknown auth format
+                console.error('[ElevenLabs DEBUG] Unknown auth format, expected sutkn_* or sk_*');
+                onError('Invalid authentication format');
+                onStatusChange('error');
+                return;
             }
 
             // URL based on reference Python SDK implementation
