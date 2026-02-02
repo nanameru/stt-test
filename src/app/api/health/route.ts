@@ -15,8 +15,13 @@ export async function GET() {
     },
     {
       provider: 'gemini-live',
-      configured: !!process.env.GOOGLE_API_KEY,
-      envVar: 'GOOGLE_API_KEY',
+      configured: !!(process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY),
+      envVar: 'NEXT_PUBLIC_GOOGLE_AI_API_KEY or GEMINI_API_KEY',
+    },
+    {
+      provider: 'elevenlabs-scribe',
+      configured: !!process.env.ELEVENLABS_API_KEY,
+      envVar: 'ELEVENLABS_API_KEY',
     },
     {
       provider: 'gpt-4o-transcribe-diarize',
