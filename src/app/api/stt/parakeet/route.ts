@@ -75,10 +75,10 @@ export async function POST(request: NextRequest) {
         const audioBuffer = await audioFile.arrayBuffer();
         const audioBase64 = Buffer.from(audioBuffer).toString('base64');
 
-        // RunPod Load Balancer API endpoint URL (not /runsync for Queue)
-        const runpodUrl = `https://${RUNPOD_PARAKEET_ENDPOINT_ID}.api.runpod.ai/transcribe`;
+        // RunPod Serverless API endpoint URL
+        const runpodUrl = `https://api.runpod.ai/v2/${RUNPOD_PARAKEET_ENDPOINT_ID}/runsync`;
 
-        // Call RunPod Parakeet API (Load Balancer format - direct to FastAPI)
+        // Call RunPod Parakeet API (Serverless format)
         const response = await fetch(runpodUrl, {
             method: 'POST',
             headers: {
@@ -86,11 +86,13 @@ export async function POST(request: NextRequest) {
                 'Authorization': `Bearer ${RUNPOD_API_KEY}`,
             },
             body: JSON.stringify({
-                audio_base64: audioBase64,
-                enable_denoise: true,
-                enable_dereverberation: true,
-                enable_vad: true,
-                enable_diarization: false,
+                input: {
+                    audio_base64: audioBase64,
+                    enable_denoise: true,
+                    enable_dereverberation: true,
+                    enable_vad: true,
+                    enable_diarization: false,
+                }
             }),
         });
 
