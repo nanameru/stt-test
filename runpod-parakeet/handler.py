@@ -1,15 +1,19 @@
 """
-RunPod Handler for NVIDIA Parakeet-TDT 0.6B (Japanese)
+RunPod Load Balancer Handler for NVIDIA Parakeet-TDT 0.6B (Japanese)
 Fast and accurate Japanese ASR model with automatic punctuation
 With full preprocessing pipeline: DeepFilterNet, nara_wpe, Silero VAD, pyannote
+
+This version uses FastAPI for Load Balancer endpoints
 """
-import runpod
+import os
 import base64
 import tempfile
-import os
 import torch
 import numpy as np
 import torchaudio
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import uvicorn
 
 # Initialize device
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -68,6 +72,27 @@ model = nemo_asr.models.ASRModel.from_pretrained(
 model = model.to(device)
 model.eval()
 print(f"NVIDIA Parakeet-TDT (ja) loaded on {device}")
+
+# FastAPI App
+app = FastAPI(title="NVIDIA Parakeet-TDT API")
+
+
+class TranscribeRequest(BaseModel):
+    audio_base64: str
+    enable_denoise: bool = True
+    enable_dereverberation: bool = True
+    enable_vad: bool = True
+    enable_diarization: bool = False
+
+
+class TranscribeResponse(BaseModel):
+    transcription: str
+    language: str = "ja"
+    model: str = "parakeet-tdt-0.6b-ja"
+    denoise_applied: bool = False
+    dereverb_applied: bool = False
+    vad_applied: bool = False
+    diarization: list = []
 
 
 def apply_deepfilter(audio_path: str) -> str:
@@ -147,22 +172,12 @@ def apply_diarization(audio_path: str) -> list:
         return []
 
 
-def handler(job):
-    """Handler function for RunPod serverless"""
+@app.post("/transcribe", response_model=TranscribeResponse)
+async def transcribe(request: TranscribeRequest):
+    """Transcribe audio using NVIDIA Parakeet-TDT"""
     try:
-        job_input = job["input"]
-        audio_base64 = job_input.get("audio_base64")
-        if not audio_base64:
-            return {"error": "No audio_base64 provided"}
-
-        # Options
-        enable_denoise = job_input.get("enable_denoise", True)
-        enable_dereverberation = job_input.get("enable_dereverberation", True)
-        enable_vad = job_input.get("enable_vad", True)
-        enable_diarization = job_input.get("enable_diarization", False)
-
         # Decode and save audio
-        audio_bytes = base64.b64decode(audio_base64)
+        audio_bytes = base64.b64decode(request.audio_base64)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
             temp_audio.write(audio_bytes)
             temp_audio_path = temp_audio.name
@@ -172,19 +187,19 @@ def handler(job):
 
         try:
             # Apply preprocessing pipeline
-            if enable_denoise:
+            if request.enable_denoise:
                 denoised_path = apply_deepfilter(current_path)
                 if denoised_path != current_path:
                     files_to_cleanup.append(denoised_path)
                     current_path = denoised_path
 
-            if enable_dereverberation:
+            if request.enable_dereverberation:
                 dereverb_path = apply_wpe(current_path)
                 if dereverb_path != current_path:
                     files_to_cleanup.append(dereverb_path)
                     current_path = dereverb_path
 
-            if enable_vad:
+            if request.enable_vad:
                 vad_path = apply_vad(current_path)
                 if vad_path != current_path:
                     files_to_cleanup.append(vad_path)
@@ -199,18 +214,16 @@ def handler(job):
 
             # Speaker diarization
             diarization_result = []
-            if enable_diarization:
+            if request.enable_diarization:
                 diarization_result = apply_diarization(temp_audio_path)
 
-            return {
-                "transcription": transcription,
-                "language": "ja",
-                "model": "parakeet-tdt-0.6b-ja",
-                "denoise_applied": enable_denoise,
-                "dereverb_applied": enable_dereverberation,
-                "vad_applied": enable_vad,
-                "diarization": diarization_result,
-            }
+            return TranscribeResponse(
+                transcription=transcription,
+                denoise_applied=request.enable_denoise,
+                dereverb_applied=request.enable_dereverberation,
+                vad_applied=request.enable_vad,
+                diarization=diarization_result,
+            )
 
         finally:
             for f in files_to_cleanup:
@@ -219,7 +232,23 @@ def handler(job):
 
     except Exception as e:
         import traceback
-        return {"error": str(e), "traceback": traceback.format_exc()}
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}\n{traceback.format_exc()}")
 
 
-runpod.serverless.start({"handler": handler})
+@app.get("/ping")
+async def ping():
+    """Health check endpoint for RunPod Load Balancer"""
+    return {"status": "ok"}
+
+
+@app.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {"status": "healthy", "model": "parakeet-tdt-0.6b-ja"}
+
+
+if __name__ == "__main__":
+    # RunPod sets PORT env var for Load Balancer
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Starting Parakeet-TDT API on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)
