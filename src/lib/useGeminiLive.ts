@@ -55,6 +55,14 @@ export function useGeminiLive({ apiKey, onTranscription, onPartialTranscription,
             return;
         }
 
+        // Check if API key is available
+        if (!apiKey) {
+            console.error('[Gemini Live] No API key provided');
+            onError('API key not configured. Check .env.local file.');
+            onStatusChange('error');
+            return;
+        }
+
         onStatusChange('connecting');
 
         try {

@@ -349,10 +349,15 @@ function HomeContent() {
   useEffect(() => {
     async function fetchGeminiApiKey() {
       try {
+        console.log('[Gemini] Fetching API key...');
         const response = await fetch('/api/stt/gemini-live');
         const data = await response.json();
+        console.log('[Gemini] API response:', { hasApiKey: !!data.apiKey, error: data.error });
         if (data.apiKey) {
           setGeminiApiKey(data.apiKey);
+          console.log('[Gemini] API key set successfully');
+        } else {
+          console.error('[Gemini] No API key in response:', data);
         }
       } catch (error) {
         console.error('Failed to fetch Gemini API key:', error);
