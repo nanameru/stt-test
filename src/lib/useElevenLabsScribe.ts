@@ -41,6 +41,7 @@ export function useElevenLabsScribe({
     const startTimeRef = useRef<number>(0);
     const isStreamingRef = useRef<boolean>(false);
     const currentPartialTextRef = useRef<string>('');
+    const lastCommittedTextRef = useRef<string>(''); // Track last committed text to avoid duplicates
     const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Convert Float32 audio samples to 16-bit PCM
@@ -200,12 +201,27 @@ export function useElevenLabsScribe({
                         }
                     } else if (msgType === 'committed_transcript' || msgType === 'committed_transcript_with_timestamps') {
                         // Committed transcript - final results
+                        // Note: Both types may be sent when include_timestamps=true
+                        // We only process one to avoid duplicates
                         const text = data.text || currentPartialTextRef.current;
                         if (text) {
-                            const latency = Date.now() - startTimeRef.current;
-                            onTranscription(text.trim(), Date.now(), latency);
+                            const trimmedText = text.trim();
+
+                            // Avoid duplicate transcriptions (same text within 1000ms)
+                            const now = Date.now();
+                            const timeSinceLastTranscription = now - startTimeRef.current;
+
+                            // Skip if this is the same text we just committed
+                            if (trimmedText === lastCommittedTextRef.current && timeSinceLastTranscription < 1000) {
+                                console.log('[ElevenLabs DEBUG] Skipping duplicate transcript:', trimmedText.substring(0, 30));
+                            } else {
+                                const latency = timeSinceLastTranscription;
+                                onTranscription(trimmedText, now, latency);
+                                lastCommittedTextRef.current = trimmedText;
+                                startTimeRef.current = now;
+                            }
+
                             currentPartialTextRef.current = '';
-                            startTimeRef.current = Date.now();
 
                             // Clear partial display
                             if (onPartialTranscription) {
